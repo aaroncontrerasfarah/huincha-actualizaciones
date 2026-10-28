@@ -1,8 +1,8 @@
 {
- "web": 7,
+ "web": 9,
  "nativo": "d4ddf86d46c2",
  "zip": "web.zip",
  "apk": "huincha3.apk",
- "fecha": "2026-10-28T23:05:11Z",
- "notas": "Croquis 3D en vivo, elementos del terreno (rejas, portones, pisos, piscina, quincho, árboles…), reconocimiento con IA, deshacer y actualización sin clave."
+ "fecha": "2026-10-28T23:46:52Z",
+ "notas": "IA incluida y gratuita (sin claves): reconoce el terreno y los elementos. Botón «Probar la IA» en el paso Proyecto."
 }
