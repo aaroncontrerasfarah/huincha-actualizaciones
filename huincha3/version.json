@@ -1,8 +1,8 @@
 {
- "web": 13,
+ "web": 14,
  "nativo": "d4ddf86d46c2",
  "zip": "web.zip",
  "apk": "huincha3.apk",
- "fecha": "2026-10-29T17:28:13Z",
- "notas": "La IA empieza a mirar apenas se abre la cámara y muestra arriba qué ve o por qué no responde."
+ "fecha": "2026-10-29T17:39:57Z",
+ "notas": "La IA empieza a mirar apenas se abre la cámara, muestra arriba qué ve o por qué no responde, y dibuja en el croquis 3D lo que reconoce."
 }
