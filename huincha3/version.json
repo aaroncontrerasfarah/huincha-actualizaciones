@@ -1,8 +1,8 @@
 {
- "web": 12,
+ "web": 13,
  "nativo": "d4ddf86d46c2",
  "zip": "web.zip",
  "apk": "huincha3.apk",
- "fecha": "2026-10-29T15:48:31Z",
- "notas": "La exploración dibuja construcciones de cualquier forma y pregunta qué es, cuánto mide y de qué material. En el mapa ya se marca la casa con todas sus esquinas y otras construcciones."
+ "fecha": "2026-10-29T17:28:13Z",
+ "notas": "La IA empieza a mirar apenas se abre la cámara y muestra arriba qué ve o por qué no responde."
 }
