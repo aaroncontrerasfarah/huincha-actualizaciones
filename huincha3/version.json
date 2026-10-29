@@ -1,8 +1,8 @@
 {
- "web": 9,
+ "web": 10,
  "nativo": "d4ddf86d46c2",
  "zip": "web.zip",
  "apk": "huincha3.apk",
- "fecha": "2026-10-28T23:46:52Z",
- "notas": "IA incluida y gratuita (sin claves): reconoce el terreno y los elementos. Botón «Probar la IA» en el paso Proyecto."
+ "fecha": "2026-10-29T13:31:07Z",
+ "notas": "Croquis 3D con estilo de boceto arquitectónico. La IA pregunta y valida cada elemento que reconoce, con la foto. Botón «Croquis» también en el recorrido 3D."
 }
