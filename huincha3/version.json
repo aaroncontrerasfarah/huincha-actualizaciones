@@ -1,8 +1,8 @@
 {
- "web": 17,
+ "web": 18,
  "nativo": "d4ddf86d46c2",
  "zip": "web.zip",
  "apk": "huincha3.apk",
- "fecha": "2026-11-01T01:36:47Z",
- "notas": "Foto aérea propia (dron o punto alto) alineada sobre el mapa y en el croquis 3D. Delinea sobre las fotos de fachada el muro, puertas, ventanas y techo. Se quitaron los videos."
+ "fecha": "2026-11-01T12:37:15Z",
+ "notas": "Las fotos de fachada reconocen terrazas, escaleras, pilares, pisos, caminos, cierres y la distancia de la casa al portón, y los dibujan en el croquis 3D."
 }
