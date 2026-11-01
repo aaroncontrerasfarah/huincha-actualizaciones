@@ -1,8 +1,8 @@
 {
- "web": 15,
+ "web": 17,
  "nativo": "d4ddf86d46c2",
  "zip": "web.zip",
  "apk": "huincha3.apk",
- "fecha": "2026-11-01T01:21:44Z",
- "notas": "Fotos de fachada con IA: reconoce las aguas del techo, puertas, ventanas y materiales, con medidas que puedes corregir. Registra el norte con la brújula. En el mapa se pueden ubicar los componentes del terreno."
+ "fecha": "2026-11-01T01:36:47Z",
+ "notas": "Foto aérea propia (dron o punto alto) alineada sobre el mapa y en el croquis 3D. Delinea sobre las fotos de fachada el muro, puertas, ventanas y techo. Se quitaron los videos."
 }
