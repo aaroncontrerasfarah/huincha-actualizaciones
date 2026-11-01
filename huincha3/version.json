@@ -1,8 +1,8 @@
 {
- "web": 14,
+ "web": 15,
  "nativo": "d4ddf86d46c2",
  "zip": "web.zip",
  "apk": "huincha3.apk",
- "fecha": "2026-10-29T17:39:57Z",
- "notas": "La IA empieza a mirar apenas se abre la cámara, muestra arriba qué ve o por qué no responde, y dibuja en el croquis 3D lo que reconoce."
+ "fecha": "2026-11-01T01:21:44Z",
+ "notas": "Fotos de fachada con IA: reconoce las aguas del techo, puertas, ventanas y materiales, con medidas que puedes corregir. Registra el norte con la brújula. En el mapa se pueden ubicar los componentes del terreno."
 }
