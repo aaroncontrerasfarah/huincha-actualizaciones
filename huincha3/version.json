@@ -1,8 +1,8 @@
 {
- "web": 23,
+ "web": 24,
  "nativo": "d4ddf86d46c2",
  "zip": "web.zip",
  "apk": "huincha3.apk",
- "fecha": "2026-11-11T15:52:40Z",
- "notas": "Recintos reconocidos solos con la cámara; artefactos, enchufes, luminarias e instalaciones (agua, alcantarillado o fosa, gas, electricidad) con lámina propia; construcciones proyectadas; distancias a los deslindes en el emplazamiento; aviso si el norte del mapa y la brújula no coinciden."
+ "fecha": "2026-11-11T16:09:12Z",
+ "notas": "Si una fachada no se puede fotografiar, se dibuja sobre una cuadrícula a escala (o se parte de la fachada opuesta, reflejada)."
 }
