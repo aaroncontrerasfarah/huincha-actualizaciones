@@ -1,0 +1,1 @@
+window.HUINCHA_WEB=25;window.HUINCHA_WEB_NATIVO='d4ddf86d46c2';
