@@ -1,8 +1,8 @@
 {
- "web": 20,
+ "web": 21,
  "nativo": "d4ddf86d46c2",
  "zip": "web.zip",
  "apk": "huincha3.apk",
- "fecha": "2026-11-01T21:37:52Z",
- "notas": "En cada foto puedes delinear con puntos lo que es (muro, techo, puerta, ventana, terraza…), nombrarlo, elegir la fachada y su revestimiento, y el croquis 3D se dibuja al instante."
+ "fecha": "2026-11-11T15:19:00Z",
+ "notas": "Indica dónde estás en el terreno (tocando el plano, con GPS o «Estoy en el portón») y señala con el dedo en la cámara cada elemento: la app lo ubica en el terreno y lo dibuja en el croquis."
 }
