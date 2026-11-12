@@ -6,10 +6,10 @@
 "use strict";
 const GUIA=[
   {k:'mapa',t:'Terreno en el mapa',ins:'Primero, marca los deslindes del terreno en el mapa satelital.'},
-  {k:'frente',t:'Frente del terreno',ins:'Párate en la vereda frente a la casa. Apunta la cámara a la reja y al portón, y muévela despacio de izquierda a derecha.',auto:1},
+  {k:'frente',t:'Frente del terreno',ins:'Párate en la vereda, frente al portón. Pon toda la reja dentro del recuadro y mueve la cámara despacio de un extremo al otro.',auto:1},
   {k:'fach0',fach:0,t:'Fachada principal',ins:'Foto de la fachada principal completa, con su techo.'},
-  {k:'acceso',t:'Acceso',ins:'Entra por el portón y camina en línea recta hacia la puerta de la casa, con la cámara al frente.',auto:1,camina:1},
-  {k:'contorno',t:'Contorno de la casa',ins:'Ahora recorre la casa por fuera, esquina por esquina.'},
+  {k:'acceso',t:'Acceso',ins:'Entra por el portón y camina despacio, en línea recta, hacia la puerta de la casa. Lleva el teléfono derecho, apuntando al frente.',auto:1,camina:1},
+  {k:'contorno',t:'Contorno de la casa',ins:'Ve a la esquina izquierda de la fachada y recorre la casa por fuera, pegado al muro, esquina por esquina.'},
   {k:'fach1',fach:1,t:'Costado derecho',ins:'Foto del costado derecho completo, con su techo.'},
   {k:'fach2',fach:2,t:'Fachada posterior',ins:'Foto de la fachada de atrás completa, con su techo.'},
   {k:'fach3',fach:3,t:'Costado izquierdo',ins:'Foto del costado izquierdo completo, con su techo.'},
@@ -47,13 +47,15 @@ function vGuiaHTML(){const g=vGuia();if(!g)return'';const i=VV.guia.i,n=GUIA.len
   let ins=g.ins;if(g.k==='patio1'||g.k==='patio3'){const L=vLadoTerreno('lado');if(L)ins+=` Son unos ${fmt(L,0)} m.`}if(g.k==='patio2'){const L=vLadoTerreno('fondo');if(L)ins+=` Son unos ${fmt(L,0)} m.`}
   const hecho=VV.elems.filter(e=>e.etapa===g.k&&!e.sug).length;
   const pie=g.camina&&VV.eng!=='ar'?`<p class="vh">${VV.dr&&VV.dr[1]<-0.3?`Estás a unos ${fmt(-VV.dr[1],1)} m de la fachada.`:''}</p>`:'';
-  return head+`<p class="vh">${esc(ins)}</p>${pie}
+  return head+`${guiaDibujo(g.k)}<p class="vh">${esc(ins)}</p>${pie}
     <p class="vh">${VV.detBusy?'La IA está mirando…':VV.auto?'La IA revisa la cámara cada pocos segundos y dibuja lo que reconoce.':''}${hecho?` Registrado en esta etapa: ${hecho}.`:''}${pend?` Por confirmar: ${pend}.`:''}</p>
+    <p class="vh tip">👆 Si la IA no reconoce algo, toca <b>Señalar</b> y luego tócalo en la cámara: lo mira de cerca.</p>
     <div class="vacts">${vgBtn('next',pend?`Confirmar ${pend} y seguir`:'Listo, siguiente','btn pri')}${vgBtn('prev','Volver','btn ghost')}</div>${vgSalir()}`}
 const vgBtn=(a,l,cl='btn')=>`<button class="${cl}" type="button" data-vg="${a}">${l}</button>`;
 const vgSalir=()=>`<div class="vacts">${vgBtn('libre','Medir sin guía','btn sm ghost')}</div>`;
 /* instrucción grande sobre la cámara */
 function vGuiaBanner(){const el=$('#vguia');if(!el||!VV)return;const g=vGuia();let t='';
+  if(typeof vPlantModo==='function'&&vPlantModo()&&!(VV.iaGuia&&Date.now()-VV.iaGuia.t<20000)){el.hidden=true;return}
   if(VV.iaGuia&&Date.now()-VV.iaGuia.t<20000)t=VV.iaGuia.txt;
   else if(g&&g.fach!=null&&VV.st==='guia')t=VV.fBusy?'Analizando la fachada…':VV.fRes?'Revisa lo que reconoció la IA':FLADO[g.fach].ins;
   else if(g&&VV.st==='guia')t=g.ins;

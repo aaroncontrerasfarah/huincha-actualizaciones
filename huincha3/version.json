@@ -1,8 +1,8 @@
 {
- "web": 25,
+ "web": 26,
  "nativo": "d4ddf86d46c2",
  "zip": "web.zip",
  "apk": "huincha3.apk",
- "fecha": "2026-11-11T16:18:50Z",
- "notas": "Versión web para probar desde el navegador."
+ "fecha": "2026-11-12T17:27:21Z",
+ "notas": "La app guía cada foto (plantilla, nivel, revisa si está movida u oscura), la IA sabe qué buscar en cada etapa, dibujos para elegir cuando duda, señalar amplía la zona y cada etapa muestra dónde pararse."
 }

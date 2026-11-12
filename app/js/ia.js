@@ -48,6 +48,7 @@ No inventes medidas. Si estimas una dimensión, dilo como estimación dentro de 
 Contexto: ${ctx}
 Actúa como un arquitecto o constructor con experiencia en viviendas chilenas (urbanas, de condominio y parcelas rurales).
 Primero entiende de qué terreno se trata (tipo de propiedad, pendiente, cómo se organiza la casa y el patio). Luego reconoce por su forma, material y función TODOS los elementos constructivos y de paisaje que deben ir en el plano: cierres y portones, caminos de acceso, estacionamientos, radieres y pisos exteriores, terrazas, escaleras, rampas, barandas, pilares, muros de contención, construcciones, ampliaciones, cobertizos, piscinas, jardineras y vegetación.
+${typeof IA_CHILE!=='undefined'?IA_CHILE:''}
 Ignora siempre lo que no es parte de la construcción ni del terreno: autos, bicicletas, personas, animales, muebles sueltos, herramientas, basura, ropa tendida u objetos temporales.
 Responde SOLO con JSON, sin texto adicional:
 {"escena":{"terreno":"tipo de terreno en pocas palabras","pendiente":"plano|suave|fuerte","resumen":"una frase con lo esencial del lugar"},
@@ -82,7 +83,7 @@ Escribe "detalle" en español de Chile.`}
   return{mode,analyze,detect,test,ask,key,setKey}})();
 
 /* Contexto breve del proyecto para la IA */
-function iaContexto(extra=''){const c=P.casa;return[`casa ${c.ancho>0?fmt(c.ancho)+' × '+fmt(c.largo)+' m':'sin medidas aún'}`,`${P.recintos.length} recintos`,(P.volumenes||[]).length?'volúmenes: '+P.volumenes.map(v=>v.nombre).join(', '):'',extra].filter(Boolean).join('; ')}
+function iaContexto(extra=''){const c=P.casa;return[typeof iaConfirmado==='function'?iaConfirmado():'',`casa ${c.ancho>0?fmt(c.ancho)+' × '+fmt(c.largo)+' m':'sin medidas aún'}`,`${P.recintos.length} recintos`,(P.volumenes||[]).length?'volúmenes: '+P.volumenes.map(v=>v.nombre).join(', '):'',extra].filter(Boolean).join('; ')}
 /* Resultado del análisis, con acciones para aplicar lo detectado */
 function iaResultHTML(r){const M=P.mat;return`<div class="iares"><p><b>La IA ve:</b> ${esc(r.descripcion||'—')}</p>
   ${r.elementos.length?`<div class="chips">${r.elementos.map(e=>`<span class="chip">${esc(e.tipo)}${e.detalle?' · '+esc(e.detalle):''}</span>`).join('')}</div>`:''}

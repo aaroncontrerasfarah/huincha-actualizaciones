@@ -149,7 +149,7 @@ function vElemSVG(){let h=vRoomsSVG();{const cp=vCasaPrevia();if(cp)h+=`<polygon
 /* ---------- agregar elementos ---------- */
 const veBtn=(act,lab,cl='btn')=>`<button class="${cl}" type="button" data-ve="${act}">${lab}</button>`;
 function vSelElem(id){VV.sel=id;VV.sub='edit';VV.place=null;vPanel();vCroquis()}
-function vPalHTML(){return`<p class="vq">${VV.retype?'¿Qué es entonces?':'¿Qué quieres agregar?'}</p>${ELT_GRUPOS.map(g=>`<div class="fld"><span>${g}</span><div class="chips">${Object.entries(ELT).filter(([,t])=>t.g===g).map(([k,t])=>`<button class="chip" data-ve="pick:${k}">${t.n}</button>`).join('')}</div></div>`).join('')}
+function vPalHTML(){return`<p class="vq">${VV.retype?'¿Qué es entonces?':'¿Qué quieres agregar?'}</p>${ELT_GRUPOS.map(g=>`<div class="fld"><span>${g}</span><div class="chips">${Object.entries(ELT).filter(([,t])=>t.g===g).map(([k,t])=>`<button class="chip" data-ve="pick:${k}">${picto(k)}${t.n}</button>`).join('')}</div></div>`).join('')}
   <div class="vacts">${veBtn('x','Cancelar','btn ghost')}</div>`}
 function vPlaceHTML(){const pl=VV.place,T=ELT[pl.t],ar=VV.eng==='ar';const need=T.k==='punto'?1:2,n=pl.pts.length;
   if(ar){const what=T.k==='linea'?(n?'el otro extremo':'un extremo'):T.k==='punto'?'el centro, donde toca el suelo':(n?'la esquina opuesta':'una esquina');
@@ -190,7 +190,7 @@ function vSugHTML(){const L=vSugPend();if(!L.length){VV.sub=null;VV.sel=null;VV.
   const T=eltOf(o),n=elNombre(o),art=T.edif?(/casa|vivienda/i.test(n)?'la':/piso|pieza|bodega|ampliaci/i.test(n)?(/piso/i.test(n)?'un':'una'):'una'):(ART[o.t]??'un'),nl=esc(n.toLowerCase());
   if(VV.val.paso==='id'){const alts=(o.alt||[]).map(k=>veBtn(`retype:${o.id}:${k}`,`Es ${ART[k]??''} ${ELT[k].n.toLowerCase()}`.replace(/\s+/g,' '),'btn'));
     return`${prog}${esc0}${foto}<p class="vq">¿Esto es ${art} ${nl}?</p><p class="vh">${o.det?esc(o.det)+' · ':''}${o.conf?`${Math.round(o.conf*100)}% seguro`:''}</p>
-      <div class="vacts">${veBtn('vok:id','Sí','btn pri')}${alts.join('')}${veBtn('other:'+o.id,'Es otra cosa','btn')}${veBtn('del:'+o.id,'No hay nada','btn')}</div>${pie}`}
+      <div class="vacts">${veBtn('vok:id','Sí','btn pri')}${veBtn('other:'+o.id,'Es otra cosa','btn')}${veBtn('del:'+o.id,'No hay nada','btn')}</div>${(()=>{const p=vPictoOpciones(o);return p?`<p class="vh">¿O se parece más a uno de estos?</p>${p}`:alts.length?`<div class="vacts">${alts.join('')}</div>`:''})()}${pie}`}
   if(VV.val.paso==='med'){const f=(lab,k,v)=>`<label class="fld"><span>${lab}</span><div class="inp"><input data-vvf="${k}" inputmode="decimal" value="${String(rr2(v)).replace('.',',')}"><em>m</em></div></label>`;
     const chips=(k,opts,cur)=>`<div class="chips">${Object.entries(opts).map(([v,l])=>`<button class="chip" data-ve="vset:${k}:${v}" aria-pressed="${String(cur)===String(v)}">${l}</button>`).join('')}</div>`;
     let body='';
@@ -233,11 +233,11 @@ async function vCrop(blob,aspect){/* recorta la foto al formato de la pantalla p
     return await new Promise(r=>cv.toBlob(b=>r(b||blob),'image/jpeg',.82))}catch(e){return blob}}
 function vDetCtx(){const lugar=VV.st==='walk'||VV.st==='confirm'?`caminando junto a: ${sideName(VV.i).toLowerCase()} de la casa`:VV.room?`dentro del recinto ${VV.room.nombre}`:'recorriendo el terreno alrededor de la casa';
   const ya=[...new Set(VV.elems.map(e=>elNombre(e)))];const es=VV.escena?`; ya se sabe del lugar: ${VV.escena.terreno}, pendiente ${VV.escena.pendiente}. ${VV.escena.resumen}`:'';
-  return iaContexto(lugar+es+(ya.length?'; ya registrados (no repetir si son los mismos): '+ya.join(', '):''))}
+  return iaContexto(lugar+es+(ya.length?'; ya registrados (no repetir si son los mismos): '+ya.join(', '):'')+'. '+iaFoco())}
 async function vDetect(auto){if(!VV||VV.detBusy)return;const m=await IA.mode();if(!m){vIaEstado('err','La IA no está conectada en esta versión de la app.');if(!auto)toast('La IA todavía no está conectada en esta versión de la app. Puedes agregar los elementos con «+ Elemento».');VV.auto=false;vPanel();return}
   if(VV.guia&&!VV.guia.ok&&!VV.ubicado&&vPoseInicial(true))VV.guia.ok=1;
   VV.detBusy=true;vIaEstado('busy','La IA está mirando…');vPanel();let n=0;const nAuto=[];
-  try{let blob=await vGrab();if(!blob)return;const ar=VV.eng==='ar';
+  try{let blob=await vGrabBueno({auto});if(!blob)return;const ar=VV.eng==='ar';
     const asp=ar&&VV.ar?.w?VV.ar.w/VV.ar.h:null;if(asp)blob=await vCrop(blob,asp);
     const here=vHere(),hfov=ar&&VV.ar?.proj?2*Math.atan(1/VV.ar.proj[0])/deg:(()=>{const v=$('#vvid');return v&&v.videoWidth>v.videoHeight?63:48})();
     const snap=vCur();const res=await IA.detect(blob,vDetCtx());if(!VV)return;

@@ -71,7 +71,9 @@ document.addEventListener('pointerup',async ev=>{if(!VV?.senal||VV.ub)return;con
   try{const blob=await vGrab();if(!blob||!VV?.sp)return;const bm=await createImageBitmap(blob);const cv=document.createElement('canvas');cv.width=bm.width;cv.height=bm.height;const g=cv.getContext('2d');g.drawImage(bm,0,0);
     const px=Math.max(0,Math.min(1,u))*bm.width,py=ny*bm.height;g.strokeStyle='#ff2d2d';g.lineWidth=Math.max(4,bm.width/120);g.beginPath();g.arc(px,py,bm.width/22,0,7);g.stroke();
     const mb=await new Promise(r=>cv.toBlob(r,'image/jpeg',.85));VV.sp.img=URL.createObjectURL(mb);vPanel();if(!(await IA.mode()))return;VV.sp.iaBusy=true;vPanel();
-    const o=await IA.ask(mb,`Eres arquitecto. En la foto de un terreno con vivienda, el CÍRCULO ROJO marca un elemento constructivo o del terreno. ¿Qué es?
+    const mc=await senalCompuesta(bm,px,py);
+    const o=await IA.ask(mc,`Eres arquitecto. La imagen tiene dos partes: a la izquierda la foto completa de un terreno con vivienda, con un CÍRCULO ROJO; a la derecha, la zona del círculo ampliada. El círculo marca un elemento constructivo o del terreno. ¿Qué es?
+${IA_CHILE}
 Responde SOLO JSON: {"tipo":"clave","alt":["clave"],"nombre":"cómo se llama, 2-4 palabras","ancho":3,"largo":2,"alto":1.8,"dist":5,"material":"clave o null","detalle":"breve"}
 Claves de tipo: ${Object.keys(ELT).join(', ')}. "dist": metros desde la cámara al círculo. "ancho" a lo ancho de la imagen, "largo" hacia el fondo. Español de Chile.`,500);
     if(!VV?.sp)return;VV.sp.iaBusy=false;if(o&&ELT[o.tipo]){VV.sp.ia={tipo:o.tipo,alt:(o.alt||[]).filter(k=>ELT[k]&&k!==o.tipo).slice(0,3),nombre:o.nombre?String(o.nombre).slice(0,40):null,ancho:+o.ancho>0?+o.ancho:null,largo:+o.largo>0?+o.largo:null,alto:+o.alto>0?+o.alto:null,dist:+o.dist>0?+o.dist:null,mat:o.material,det:String(o.detalle||'')};
@@ -83,7 +85,7 @@ function vSenalHTML(){const S=VV.sp;if(!S)return'';const ia=S.ia;
   const tipos=[...new Set([ia?.tipo,...(ia?.alt||[]),...SENAL_TIPOS].filter(Boolean))];
   const necesitaDist=!S.pt;
   return`<p class="vq">¿Qué es lo que señalaste?</p>${foto}${sug}
-    <div class="chips">${tipos.map(k=>`<button class="chip" data-sn="tipo:${k}" aria-pressed="${S.tipo===k}">${ELT[k].n}</button>`).join('')}</div>
+    <div class="chips">${tipos.map(k=>`<button class="chip" data-sn="tipo:${k}" aria-pressed="${S.tipo===k}">${picto(k)}${ELT[k].n}</button>`).join('')}</div>
     ${necesitaDist?`<div class="fld"><span>¿A qué distancia está? (desde ti)</span><div class="chips">${[2,4,6,8,10,15,20].map(d=>`<button class="chip" data-sn="dist:${d}" aria-pressed="${S.dist===d}">${d} m</button>`).join('')}</div>
       <div class="inp"><input data-snd inputmode="decimal" value="${S.dist!=null?String(S.dist).replace('.',','):''}" placeholder="o escribe los metros"><em>m</em></div></div>`:`<p class="vh">📍 Ubicado con la cámara${S.dist?` a ${fmt(S.dist,1)} m de ti`:''}.</p>`}
     <div class="vacts"><button class="btn pri" data-sn="ok" ${S.tipo&&(S.pt||S.dist)?'':'disabled'}>Agregar al croquis</button><button class="btn ghost" data-sn="x">Cancelar</button></div>`}

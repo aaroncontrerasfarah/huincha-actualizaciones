@@ -3,10 +3,10 @@
    puertas, ventanas y materiales; la app pregunta lo que falta (ancho, alto, tipo de techo), registra el norte con
    la brújula y lo dibuja en el croquis 3D. Todo pasa al proyecto para los planos, la visita guiada y la cubicación. */
 "use strict";
-const FLADO=[{k:'frontal',n:'Fachada principal',ins:'Párate frente a la casa, a unos pasos, para que se vea completa con su techo.'},
-  {k:'derecho',n:'Costado derecho',ins:'Párate frente al costado derecho de la casa (mirando desde la calle), para que se vea entero con su techo.'},
-  {k:'posterior',n:'Fachada posterior',ins:'Párate en el patio, frente a la fachada de atrás, para que se vea completa.'},
-  {k:'izquierdo',n:'Costado izquierdo',ins:'Párate frente al costado izquierdo de la casa, para que se vea entero con su techo.'}];
+const FLADO=[{k:'frontal',n:'Fachada principal',ins:'Párate frente al centro de la casa, a 5 o 6 pasos de la fachada (o en la vereda si la reja está cerca). Sostén el teléfono derecho, a la altura del pecho.'},
+  {k:'derecho',n:'Costado derecho',ins:'Camina al costado derecho de la casa (mirando desde la calle) y párate frente a su centro, lo más lejos que permita el terreno.'},
+  {k:'posterior',n:'Fachada posterior',ins:'Ve al patio y párate frente al centro de la fachada de atrás, a 5 o 6 pasos.'},
+  {k:'izquierdo',n:'Costado izquierdo',ins:'Camina al costado izquierdo de la casa y párate frente a su centro, lo más lejos que permita el terreno.'}];
 const FTECHO={'dos-aguas':'Dos aguas','un-agua':'Un agua','plana':'Plano'};
 const FVANO={puerta:'Puerta',ventana:'Ventana',ventanal:'Ventanal',porton_garage:'Portón de garaje'};
 
@@ -27,7 +27,8 @@ Responde SOLO con JSON, sin texto adicional:
 - "elementos": TODO lo constructivo que se ve delante o al lado de esta fachada, no solo el muro: terraza, escalera o gradas, rampa, baranda, pilares, alero o corredor techado (cobertizo/pergola), radier o piso exterior, camino de acceso, estacionamiento, jardinera, reja, portón, muro, ampliación (edificacion), chimenea, etc. Claves válidas: ${Object.keys(ELT).join(', ')}.
   "ancho": medida a lo largo de la fachada; "fondo": cuánto se adelanta desde el muro hacia afuera; "dist": distancia desde el muro hasta su borde más cercano (0 si está pegado); materiales válidos según el tipo: pisos y terrazas ${Object.keys(MATOPC.piso).join(', ')}; cierres ${Object.keys(MATOPC.cierre).join(', ')}.
 - "dist_reja": distancia en metros desde esta fachada hasta la reja o portón del frente, si se ve; si no, null.
-- Estima medidas comparando con puertas de 2 m de alto y 0,9 m de ancho, peldaños de 18 cm y paños de reja de 2 a 2,5 m.
+- Estima medidas comparando con puertas de 2 m de alto y 0,9 m de ancho, una persona de pie (≈1,7 m), una huincha estirada, peldaños de 18 cm, hiladas de ladrillo de 7 cm o bloques de 20 cm, y paños de reja de 2 a 2,5 m.
+${typeof IA_CHILE!=='undefined'?IA_CHILE:''}
 - Claves de cubierta: ${Object.keys(MATS.cubierta.opts).join(', ')}. revExt: ${Object.keys(MATS.revExt.opts).join(', ')}. zocalo: ${Object.keys(MATS.zocalo.opts).join(', ')}. ventanas: ${Object.keys(MATS.ventanas.opts).join(', ')}. Usa null si no se distingue.
 Escribe en español de Chile.`}
 async function iaFachada(blob,lado){const o=await IA.ask(blob,promptFachada(lado,iaContexto()),1400);const n01=v=>Math.max(0,Math.min(1,+v||0));const cj=c=>Array.isArray(c)&&c.length===4?c.map(n01):null;
@@ -49,7 +50,7 @@ function fAnchoConocido(i){const s=VV.sides[i];if(s)return s.len??s.est;const c=
 function fBlank(){return{caja:[.12,.3,.88,.88],ancho:null,alto:null,pisos:1,techo:{tipo:null,cumbrera:'paralela',alto:null,cubierta:null},vanos:[],mat:{},els:[],distReja:null,resumen:'',conf:0,manual:true}}
 async function fAnalizar(blob,i){if(!(await IA.mode()))return fBlank();try{return await iaFachada(blob,FLADO[i].n.toLowerCase())}catch(err){toast(iaErrorMsg(err)+' Puedes delinear tú los elementos.');const r=fBlank();r.err=iaErrorMsg(err);return r}}
 async function vFachadaFoto(i){if(VV.fBusy)return;VV.fBusy=true;VV.fRes=null;vPanel();
-  try{const rumbo=i===0?await vLeerRumbo():null;let blob=await vGrab();if(!blob)return;if(VV.eng==='ar'&&VV.ar?.w)blob=await vCrop(blob,VV.ar.w/VV.ar.h);
+  try{const rumbo=i===0?await vLeerRumbo():null;let blob=await vGrabBueno({fach:true});if(!blob)return;if(VV.eng==='ar'&&VV.ar?.w)blob=await vCrop(blob,VV.ar.w/VV.ar.h);
     const img=URL.createObjectURL(blob);const r=await fAnalizar(blob,i);if(!VV)return;
     r.img=img;r.lado=i;r.rumbo=rumbo;r.DR=r.distReja||null;r.W=fAnchoConocido(i)||r.ancho||(i%2===0?9:8);r.H=r.alto||+P.casa.altura||2.4;
     VV.fRes=r;vFachadaPreview(i);try{const ph=await storePhoto(blob);P.fotos[['frontal','derecha','posterior','izquierda'][i]].push(ph);persist()}catch(e){}}
@@ -60,7 +61,7 @@ async function vFachadaFoto(i){if(VV.fBusy)return;VV.fBusy=true;VV.fRes=null;vPa
 function vFachadaHTML(i){const r=VV.fRes;const L=FLADO[i];
   if(VV.fBusy)return`<p class="vh"><b>La IA está analizando la fachada…</b> Reconoce el muro, las aguas del techo, puertas, ventanas y materiales.</p>`;
   if(r)return fReviewHTML(r,VV.techo||r.techo,r.lado,'vfa');
-  return`<p class="vh">${esc(L.ins)} Con una foto la IA reconoce las aguas del techo, puertas, ventanas y materiales${i===0?', y la brújula registra el norte':''}.</p>
+  return`${guiaDibujo('fach'+i)}<p class="vh">${esc(L.ins)} Con una foto la IA reconoce las aguas del techo, puertas, ventanas y materiales${i===0?', y la brújula registra el norte':''}.</p>
     <div class="vacts"><button class="btn pri" data-vfa="foto:${i}">Foto de la fachada</button><button class="btn" type="button" data-vfd="${i}">No se puede fotografiar: dibujarla</button>${VV.fach?.[i]?'<span class="lbl">✓ Ya registrada</span>':''}</div>`}
 /* medidas de cada vano en metros, desde su recuadro (o lo que escribió el usuario) */
 function fVanoMed(r,v){const c=r.caja,cw=(c[2]-c[0])||1,ch=(c[3]-c[1])||1;const fx0=(v.caja[0]-c[0])/cw,fx1=(v.caja[2]-c[0])/cw,fyb=(c[3]-v.caja[3])/ch,fyt=(c[3]-v.caja[1])/ch;

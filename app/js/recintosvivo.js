@@ -39,7 +39,7 @@ function vRecNombre(tipo,nombre){const t=TIPOS[tipo]||TIPOS.otro;const cnt=VV.ro
 /* revisión automática */
 async function vRecDetect(manual){if(!VV||VV.rBusy||VV.st!=='rooms'||VV.meas)return;if(!(await IA.mode())){if(manual)toast('La IA no está conectada: elige el recinto a mano.');VV.rauto=false;vPanel();return}
   VV.rBusy=true;vIaEstado('busy','La IA está mirando el recinto…');vPanel();
-  try{const blob=await vGrab();if(!blob)return;const pos=vRecPos();const ya=VV.rooms.map(r=>r.nombre).join(', ');
+  try{const blob=await vGrabBueno({auto:!manual});if(!blob)return;const pos=vRecPos();const ya=VV.rooms.map(r=>r.nombre).join(', ');
     const r=await iaRecinto(blob,iaContexto('recorriendo el interior'+(ya?'; ya registrados: '+ya:'')));if(!VV)return;
     if(r.guia){VV.iaGuia={txt:r.guia,t:Date.now()}}
     if(!r.es||r.conf<.45){vIaEstado('ok','No se distingue el recinto. Apunta a un rincón para ver dos muros y el piso.');if(manual)toast('No reconocí el recinto: apunta a un rincón o elígelo abajo.');return}
