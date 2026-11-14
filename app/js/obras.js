@@ -30,7 +30,9 @@ function obrasSup(proy){return(P.elementos||[]).filter(e=>!!e.proy===!!proy&&(el
 function obrasCubica(){const rows=[];for(const e of P.elementos||[]){const T=eltOf(e);if(!(T.k==='vol'||e.t==='piscina'||(e.proy&&T.k==='area')))continue;const A=elAreaM2(e);if(!(A>0))continue;const pre=(e.proy?'Proyectado':'Existente')+' · '+elNombre(e);
     if(T.k==='vol'){const f=elFoot(e);let per=0;for(let i=0;i<f.length;i++){const p=f[i],q=f[(i+1)%f.length];per+=Math.hypot(q[0]-p[0],q[1]-p[1])}const h=+e.h||T.h||2.4;
       rows.push([pre+': superficie','m²',A]);if(e.proy){rows.push([pre+': radier o fundación (e = 10 cm)','m³',A*.1]);if(T.edif||['bodega','quincho','galpon'].includes(e.t))rows.push([pre+': muros perimetrales','m²',per*Math.min(h,2.6)]);rows.push([pre+': cubierta (con aleros y pendiente)','m²',A*1.18])}}
-    else if(e.t==='piscina'){rows.push([pre+': espejo de agua','m²',A]);if(e.proy)rows.push([pre+': excavación','m³',A*((+e.h||1.4)+.2)])}
+    else if(e.t==='piscina'){const d=piscDims(e),f=elFoot(e);let per=0;for(let i=0;i<f.length;i++){const p=f[i],q=f[(i+1)%f.length];per+=Math.hypot(q[0]-p[0],q[1]-p[1])}
+      rows.push([pre+': espejo de agua ('+piscMed(e)+')','m²',A]);rows.push([pre+': volumen de agua','m³',A*d.prom]);rows.push([pre+': revestimiento de fondo y muros','m²',A+per*d.prom]);rows.push([pre+': borde o coronamiento','ml',per]);
+      if(e.proy){rows.push([pre+': excavación','m³',A*(d.prom+.2)*1.1]);rows.push([pre+': hormigón de radier y muros (e = 15 cm)','m³',(A+per*d.prom)*.15])}}
     else rows.push([pre+': superficie','m²',A])}
   return rows}
 
@@ -58,3 +60,26 @@ document.addEventListener('click',e=>{const b=e.target.closest('[data-elproy]');
 function elPosLote(e){const pts=elLote(e);return[Math.min(...pts.map(p=>p[0])),Math.min(...pts.map(p=>p[1]))]}
 document.addEventListener('change',e=>{const t=e.target;if(!t.dataset?.elpos||document.getElementById('vivo'))return;const [id,ax]=t.dataset.elpos.split(':');const el=(P.elementos||[]).find(x=>x.id===id);const v=num(t.value);if(!el||!(v>=0))return;
   const cur=elPosLote(el);elMove(el,ax==='x'?v-cur[0]:0,ax==='y'?v-cur[1]:0);el.est=false;persist();const y=window.scrollY;render();window.scrollTo(0,y)});
+
+/* ---------- fundación y nivel de piso (casa sobre pilotes o poyos) ---------- */
+const FUND={tipo:{lab:'Fundación de la casa',opts:{radier:'Radier sobre el suelo',zapata:'Cimiento corrido',pilotes:'Pilotes',poyos:'Poyos de hormigón',losa:'Losa'}},
+  mat:{lab:'Material de los pilotes',si:f=>/pilotes|poyos/.test(f.tipo||''),opts:{impregnado:'Pino impregnado',hormigon:'Hormigón',acero:'Acero',roble:'Roble o nativo'}},
+  sep:{lab:'Separación entre pilotes',si:f=>/pilotes|poyos/.test(f.tipo||''),opts:{'1.2':'1,20 m','1.5':'1,50 m','2':'2,00 m','2.5':'2,50 m'}}};
+const nivelPiso=()=>Math.max(0,+P.casa.nivelPiso||0);
+function fundHTML(){const f=P.fund=P.fund||{};const c=P.casa;
+  return`<div class="card" id="fund"><h3>Fundación y nivel del piso</h3><p class="note">¿La casa está sobre el suelo o elevada sobre pilotes? Si hay escalones para entrar, la casa está elevada.</p>
+    ${Object.entries(FUND).filter(([,d])=>!d.si||d.si(f)).map(([k,d])=>`<div class="fld tch"><span>${d.lab}</span><div class="chips">${Object.entries(d.opts).map(([v,l])=>`<button class="chip" data-fund="${k}:${v}" aria-pressed="${f[k]===v}">${l}</button>`).join('')}</div></div>`).join('')}
+    <label class="fld"><span>Altura del piso sobre el terreno</span><div class="inp"><input data-fundn inputmode="decimal" value="${c.nivelPiso>0?String(c.nivelPiso).replace('.',','):''}" placeholder="0"><em>m</em></div></label>
+    ${c.nivelPiso>0?`<p class="note">Se dibuja elevada en las elevaciones y el 3D${/pilotes|poyos/.test(f.tipo||'')?', con sus pilotes':''}. Recuerda registrar la escalera de acceso.</p>`:''}</div>`}
+document.addEventListener('click',e=>{const b=e.target.closest('[data-fund]');if(!b)return;const [k,v]=b.dataset.fund.split(':');const f=P.fund=P.fund||{};f[k]=f[k]===v?null:v;persist();const y=window.scrollY;render();window.scrollTo(0,y)});
+document.addEventListener('change',e=>{if(e.target.dataset?.fundn==null)return;const v=num(e.target.value);P.casa.nivelPiso=v>0?Math.round(v*100)/100:0;persist();const y=window.scrollY;render();window.scrollTo(0,y)});
+/* ubicación de los pilotes bajo la casa (grilla con la separación indicada) */
+function pilotesCasa(){const f=P.fund||{},c=P.casa;if(!/pilotes|poyos/.test(f.tipo||'')||!(c.ancho>0&&c.largo>0))return[];const s=+f.sep||1.5;const nx=Math.max(1,Math.round(c.ancho/s)),ny=Math.max(1,Math.round(c.largo/s));const out=[];
+  for(let i=0;i<=nx;i++)for(let j=0;j<=ny;j++)out.push([c.ancho*i/nx,c.largo*j/ny]);return out}
+function fundCubica(){const f=P.fund||{},rows=[];const pl=pilotesCasa();if(pl.length){const h=nivelPiso()+(f.tipo==='poyos'?.6:1);rows.push([`${f.tipo==='poyos'?'Poyos':'Pilotes'}${f.mat?' de '+FUND.mat.opts[f.mat].toLowerCase():''} (bajo la casa)`,'un',pl.length]);if(f.tipo==='pilotes')rows.push(['Pilotes: largo total (enterrado + a la vista)','ml',pl.length*h]);else rows.push(['Hormigón de poyos (0,3 × 0,3 m)','m³',pl.length*.09*h])}
+  for(const e of P.elementos||[])if(e.t==='pilote')rows.push([elNombre(e)+' (terreno)','un',+e.n||1]);
+  const esc=(P.elementos||[]).filter(e=>e.t==='escalera');for(const e of esc){const n=+e.peld||Math.max(1,Math.round((+e.h||1)/.18));rows.push([`${elNombre(e)}: ${n} peldaños de ${fmt(e.w,2)} m`,'un',n])}
+  for(const e of P.elementos||[])if(e.t==='altillo'||e.t==='balcon')rows.push([`${elNombre(e)}: superficie de piso`,'m²',(+e.w||0)*(+e.l||0)]);
+  const bar=(P.elementos||[]).filter(e=>e.t==='baranda').reduce((t,e)=>t+elLen(e),0);if(bar)rows.push(['Barandas','ml',bar]);
+  return rows}
+function fundSpec(){const f=P.fund||{};if(!f.tipo&&!(P.casa.nivelPiso>0))return[];return[['Fundación',[f.tipo?FUND.tipo.opts[f.tipo]:'',f.mat?FUND.mat.opts[f.mat].toLowerCase():'',f.sep?'a '+FUND.sep.opts[f.sep]:'',P.casa.nivelPiso>0?'piso a '+fmt(P.casa.nivelPiso)+' m sobre el terreno':''].filter(Boolean).join(', ')]]}

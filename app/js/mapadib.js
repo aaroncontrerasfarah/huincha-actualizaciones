@@ -34,7 +34,8 @@ document.addEventListener('click',e=>{const b=e.target.closest('[data-mfuente]')
 const DIBG=[
   {g:'Construcciones',ks:['edificacion','quincho','cobertizo','carport','bodega','galpon','pergola']},
   {g:'Pisos y patio',ks:['piscina','radier','ceramico','terraza','deck','estacionamiento','camino','pasto','gravilla','jardinera','fosa']},
-  {g:'Cierres',ks:['reja','porton','cerco','muro','malla']},
+  {g:'Cierres',ks:['reja','porton','cerco','muro','malla','baranda']},
+  {g:'Estructura',ks:['balcon','altillo','escalera','pilote','escaleraCaracol']},
   {g:'Puntos',ks:['arbol','arbusto','palmera','poste','estanque','medidorAgua','medidorLuz','camaraIns','pozoAbs']},
   {g:'Anotaciones',ks:['calle','cota','texto']}];
 const DIBA={calle:{n:'Calle (con su nombre)',geo:'linea',col:'#9aa3ad'},cota:{n:'Cota (medida)',geo:'linea',col:'#ffffff'},texto:{n:'Texto',geo:'punto',col:'#ffffff'}};

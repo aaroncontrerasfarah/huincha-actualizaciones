@@ -57,7 +57,7 @@ document.addEventListener('click',e=>{const b=e.target.closest('[data-ub]');if(!
     case 'brujula':vUbFin(vThetaBrujula());break}});
 
 /* ---------- señalar un elemento tocando la cámara ---------- */
-const SENAL_TIPOS=['porton','reja','piscina','cobertizo','quincho','edificacion','terraza','escalera','radier','camino','estacionamiento','arbol','arbusto','pilar','muro','bodega','jardinera','estanque','otro'];
+const SENAL_TIPOS=['porton','reja','piscina','cobertizo','quincho','edificacion','terraza','escalera','baranda','balcon','altillo','pilote','escaleraCaracol','radier','camino','estacionamiento','arbol','arbusto','pilar','muro','bodega','jardinera','estanque','otro'];
 function vSenalToggle(){if(!VV.ubicado){toast('Primero indica dónde estás, para ubicar bien lo que señales.');vUbicar('senal');return}VV.senal=!VV.senal;$('#vcam')?.classList.toggle('senalando',VV.senal);vPanel();
   if(VV.senal)toast('Toca en la cámara el pie del elemento (donde toca el suelo).')}
 document.addEventListener('pointerup',async ev=>{if(!VV?.senal||VV.ub)return;const cam=$('#vcam');if(!cam||!cam.contains(ev.target)||ev.target.closest('button,a,input,.vcro,.vhud,.viast,.vguia'))return;

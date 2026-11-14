@@ -48,6 +48,10 @@ const ELT={
   medidorAgua:{n:'Medidor de agua',g:'Instalaciones',k:'punto',w:.4,h:.3,col:'#5B7F95'},
   medidorLuz:{n:'Medidor eléctrico (empalme)',g:'Instalaciones',k:'punto',w:.4,h:1.6,col:'#6A6F73'},
   medidorGas:{n:'Medidor o nicho de gas',g:'Instalaciones',k:'punto',w:.5,h:1,col:'#C6A04A'},
+  altillo:{n:'Altillo o entrepiso',g:'Estructura',k:'area',w:3,l:3,h:.15,nivel:2.3,col:'#A07A52'},
+  balcon:{n:'Balcón',g:'Estructura',k:'area',w:3,l:1.2,h:.15,nivel:2.7,col:'#B9B4AA'},
+  pilote:{n:'Pilote o poyo',g:'Estructura',k:'punto',w:.2,h:.8,col:'#8B6A48'},
+  escaleraCaracol:{n:'Escalera caracol',g:'Estructura',k:'punto',w:1.6,h:2.6,col:'#5C6266'},
   otro:{n:'Otro elemento',g:'Otros',k:'punto',w:1,h:1,col:'#B4471A'}
 };
 /* Materiales que se preguntan por tipo de elemento (tex/col: cómo se dibuja) */
@@ -64,7 +68,7 @@ const elMatOpts=e=>MATOPC[MATGRP[e.t]]||null;
 const elMat=e=>{const o=elMatOpts(e);return o&&e.mat?o[e.mat]:null};
 const FORMAS={rect:'Rectangular',L:'En L',circulo:'Circular',libre:'Otra forma'};
 const TECHOS={plano:'Plano',una_agua:'Una agua',dos_aguas:'Dos aguas'};
-const ELT_GRUPOS=['Cierres','Pisos','Patio','Construcciones','Vegetación','Instalaciones','Otros'];
+const ELT_GRUPOS=['Cierres','Pisos','Patio','Construcciones','Estructura','Vegetación','Instalaciones','Otros'];
 const eltOf=e=>ELT[e.t]||ELT.otro;
 const elNombre=e=>e.nombre||eltOf(e).n;
 
@@ -92,7 +96,14 @@ function elMove(e,dx,dy){if(eltOf(e).k==='linea'){e.a=[e.a[0]+dx,e.a[1]+dy];e.b=
 function elRotate(e,da){if(eltOf(e).k==='linea'){const [cx,cy]=elCenter(e),c=Math.cos(da),s=Math.sin(da);const r=p=>[cx+(p[0]-cx)*c-(p[1]-cy)*s,cy+(p[0]-cx)*s+(p[1]-cy)*c];e.a=r(e.a);e.b=r(e.b)}else e.rot=(e.rot||0)+da}
 function elSetLen(e,L){const [cx,cy]=elCenter(e),d=elLen(e)||1,ux=(e.b[0]-e.a[0])/d,uy=(e.b[1]-e.a[1])/d;e.a=[cx-ux*L/2,cy-uy*L/2];e.b=[cx+ux*L/2,cy+uy*L/2]}
 function elMedidas(e){const T=eltOf(e);if(T.edif)return`${fmt(e.w,1)} × ${fmt(e.l,1)} m · ${FORMAS[e.forma||'rect'].toLowerCase()} · ${e.pisos||1} piso${(e.pisos||1)>1?'s':''} · techo ${(TECHOS[e.techo]||'').toLowerCase()}${elMat(e)?' · '+elMat(e).n.toLowerCase():''}`;if(T.k==='linea')return`${fmt(elLen(e),1)} m de largo · ${fmt(e.h,1)} m de alto`;if(T.k==='punto')return`${fmt(e.w,1)} m de diámetro · ${fmt(e.h,1)} m de alto`;
-  return`${fmt(e.w,1)} × ${fmt(e.l,1)} m`+(T.k==='vol'?` · ${fmt(e.h,1)} m de alto`:e.t==='piscina'?` · ${fmt(e.h,1)} m de profundidad`:'')}
+  if(e.t==='piscina')return piscMed(e);
+  if(e.t==='altillo'||e.t==='balcon')return`${fmt(e.w,1)} × ${fmt(e.l,1)} m · a ${fmt(+e.nivel||T.nivel,1)} m del suelo`;
+  if(e.t==='escalera'){const n=Math.max(1,Math.round((+e.h||T.h)/.18));return`${fmt(e.w,1)} m de ancho · ${fmt(e.l,1)} m de largo · sube ${fmt(e.h,2)} m (${e.peld||n} peldaños)`}
+  if(e.t==='pilote')return`${e.n>1?e.n+' × ':''}${fmt(e.w,2)} m · ${fmt(e.h,1)} m de alto`;
+  return`${fmt(e.w,1)} × ${fmt(e.l,1)} m`+(T.k==='vol'?` · ${fmt(e.h,1)} m de alto`:'')}
+/* piscina: largo × ancho × fondo (con fondo menor y mayor si tiene parte baja y honda) */
+const piscDims=e=>{const a=+e.w||0,b=+e.l||0,hM=+e.h||1.4,hm=+e.hMin>0?Math.min(+e.hMin,hM):hM;return{largo:Math.max(a,b),ancho:Math.min(a,b),hm,hM,prom:(hm+hM)/2}};
+function piscMed(e,corto){const d=piscDims(e);return`${fmt(d.largo,1)} × ${fmt(d.ancho,1)}${corto?'':' m'} · fondo ${Math.abs(d.hM-d.hm)>.01?fmt(d.hm,1)+' a '+fmt(d.hM,1):fmt(d.hM,1)} m`}
 /* distancia en planta de un punto al elemento (para no duplicar lo reconocido) */
 function elDist(e,p){const T=eltOf(e);if(T.k==='linea'){const ax=e.a[0],ay=e.a[1],dx=e.b[0]-ax,dy=e.b[1]-ay,L2=dx*dx+dy*dy||1,t=Math.max(0,Math.min(1,((p[0]-ax)*dx+(p[1]-ay)*dy)/L2));return Math.hypot(p[0]-ax-dx*t,p[1]-ay-dy*t)}
   const c=elCenter(e);return Math.max(0,Math.hypot(p[0]-c[0],p[1]-c[1])-Math.min(e.w||1,e.l||e.w||1)/2)}
@@ -105,6 +116,12 @@ function elem3D(e,o={}){const T=eltOf(e),g=new THREE.Group();g.userData.elem=e.i
   const H=+e.h||T.h||1;const MT=elMat(e);
   const ext=(pts,depth,mat,y=0)=>{const sh=new THREE.Shape(pts.map(q=>new THREE.Vector2(q[0],q[1])));const geo=new THREE.ExtrudeGeometry(sh,{depth:Math.max(.01,depth),bevelEnabled:false});geo.rotateX(-Math.PI/2);if(typeof uvWorld==='function')uvWorld(geo);const m=new THREE.Mesh(geo,mat);m.position.y=y;g.add(m);return m};
   const grow=(pts,d)=>{const n=pts.length;return pts.map((p,i)=>{const a=pts[(i+n-1)%n],b=pts[(i+1)%n];const n1=[a[1]-p[1],p[0]-a[0]],n2=[p[1]-b[1],b[0]-p[0]];const nn=(v)=>{const L=Math.hypot(v[0],v[1])||1;return[v[0]/L,v[1]/L]};const u=nn(n1),v=nn(n2);const m=nn([u[0]+v[0],u[1]+v[1]]);const area=pts.reduce((s,q,j)=>{const r=pts[(j+1)%n];return s+q[0]*r[1]-r[0]*q[1]},0);const sg=area>0?-1:1;return[p[0]+m[0]*d*sg,p[1]+m[1]*d*sg]})};
+  if(e.t==='altillo'||e.t==='balcon'){const nv=+e.nivel||T.nivel,F=elLocalFoot(e),wd=M(MT?.tex||'woodH',MT?.col||T.col,{rough:.85});ext(F,+e.h||.15,wd,nv-(+e.h||.15));
+    const post=M('flat','#5C5048',{rough:.8});if(e.t==='altillo'||e.apoyo==='pilares')for(const q of F)box(.12,nv,.12,post,q[0],nv/2,-q[1]);
+    if(e.t==='balcon'||e.baranda){const bm=M('bars','#3A3D40',{metal:.4,side:1});for(let i=0;i<F.length;i++){const p=F[i],q=F[(i+1)%F.length],l=Math.hypot(q[0]-p[0],q[1]-p[1]);if(e.t==='balcon'&&i===2)continue;const m=box(l,.95,.04,bm,(p[0]+q[0])/2,nv+.47,-(p[1]+q[1])/2);m.rotation.y=-Math.atan2(q[1]-p[1],q[0]-p[0])}}
+    g.position.set(e.x,0,-e.y);g.rotation.y=e.rot||0;return g}
+  if(e.t==='pilote'){const R=(+e.w||T.w)/2,pm=M(MT?.tex||'woodV',MT?.col||T.col,{rough:.9});cyl(R,R,H,pm,0,H/2,0,10);g.position.set(e.x,0,-e.y);return g}
+  if(e.t==='escaleraCaracol'){const R=(+e.w||T.w)/2,sm=M('flat',T.col,{rough:.5,metal:.4});cyl(.06,.06,H,sm,0,H/2,0,10);const n=Math.max(8,Math.round(H/.2));for(let k=0;k<n;k++){const st=box(R,.04,R*.45,sm,0,(k+1)*H/n,0);st.geometry.translate(R/2,0,0);st.rotation.y=k*(Math.PI*2*.85/n)}g.position.set(e.x,0,-e.y);return g}
   if((T.k==='vol'||T.k==='area')&&(T.edif||(e.forma&&e.forma!=='rect'))){const F=elLocalFoot(e);
     if(T.edif){const pis=Math.max(1,+e.pisos||1),HH=Math.max(2.2,+e.h||2.5*pis);const wm=M(MT?.tex||'stucco',MT?.col||T.col,{rough:.9});
       ext(F,HH,wm);for(let k=1;k<pis;k++)ext(grow(F,.05),.12,M('flat','#D9D6CF'),HH*k/pis-.06);
@@ -166,7 +183,7 @@ function elemSiteSVG(X,Y,s,hx,hy){let h='';const P2=p=>`${r2(X(hx+p[0]))},${r2(Y
     if(T.k==='linea')h+=`<polyline points="${P2(e.a)} ${P2(e.b)}" style="fill:none;stroke:#1b1e20;stroke-width:${e.t==='muro'?1.2:.6};${e.t==='muro'?'':'stroke-dasharray:2 1'}"/>`;
     else if(T.k==='punto')h+=`<circle cx="${r2(X(hx+e.x))}" cy="${r2(Y(hy+e.y))}" r="${r2(Math.max(.15,(+e.w||1)/2)*s)}" style="${st}"/>`;
     else{h+=`<polygon points="${elFoot(e).map(P2).join(' ')}" style="${st}${T.k==='vol'?';stroke-dasharray:3 1.5':''}"/>`;
-      if(T.k==='vol'||e.t==='piscina'||e.t==='fosa'||e.proy){const c=elCenter(e),fz=Math.max(1.6,s*.45);h+=`<text x="${r2(X(hx+c[0]))}" y="${r2(Y(hy+c[1]))}" font-size="${r2(fz)}" text-anchor="middle" class="tx" style="fill:${pc}">${esc(elNombre(e).toUpperCase())}</text><text x="${r2(X(hx+c[0]))}" y="${r2(Y(hy+c[1])+fz*1.15)}" font-size="${r2(fz*.75)}" text-anchor="middle" class="tx mono" style="fill:${pc}">${e.proy?'PROYECTADO · ':''}${fmt(e.w,1)} × ${fmt(e.l,1)}</text>`}}
+      if(T.k==='vol'||e.t==='piscina'||e.t==='fosa'||e.proy){const c=elCenter(e),fz=Math.max(1.6,s*.45);h+=`<text x="${r2(X(hx+c[0]))}" y="${r2(Y(hy+c[1]))}" font-size="${r2(fz)}" text-anchor="middle" class="tx" style="fill:${pc}">${esc(elNombre(e).toUpperCase())}</text><text x="${r2(X(hx+c[0]))}" y="${r2(Y(hy+c[1])+fz*1.15)}" font-size="${r2(fz*.75)}" text-anchor="middle" class="tx mono" style="fill:${pc}">${e.proy?'PROYECTADO · ':''}${e.t==='piscina'?piscMed(e,true):fmt(e.w,1)+' × '+fmt(e.l,1)}</text>`}}
     if(T.k==='punto'&&T.g==='Instalaciones'){h+=`<text x="${r2(X(hx+e.x)+s*.6)}" y="${r2(Y(hy+e.y))}" font-size="${r2(Math.max(1.4,s*.35))}" class="tx">${esc(elNombre(e))}</text>`}}
   return h}
 
@@ -174,7 +191,7 @@ function elemSiteSVG(X,Y,s,hx,hy){let h='';const P2=p=>`${r2(X(hx+p[0]))},${r2(Y
 function elemCardHTML(){const L=P.elementos||[];
   return`<div class="card" id="elems"><div class="row sb"><h3>Elementos del terreno</h3><span class="lbl">${L.length?L.length+' registrado'+(L.length>1?'s':''):'Rejas, portones, pisos, piscina, árboles…'}</span></div>
   ${L.length?`<div class="list">${L.map(e=>{const T=eltOf(e);const ps=T.k!=='linea'?elPosLote(e):null;return`<div class="li elrow"><span><b>${esc(elNombre(e))}</b>${e.proy?' <span class="badge proy">Proyectado</span>':''}${e.est&&!e.proy?' <span class="lbl">estimado</span>':''}<br><small>${esc(T.g)} · ${elMedidas(e)}</small>${ps&&lotPoly()?`<span class="elpos"><label class="inp sm"><input data-elpos="${e.id}:x" inputmode="decimal" value="${String(rr1(ps[0])).replace('.',',')}" aria-label="Distancia al deslinde izquierdo"><em>m del deslinde izq.</em></label><label class="inp sm"><input data-elpos="${e.id}:y" inputmode="decimal" value="${String(rr1(ps[1])).replace('.',',')}" aria-label="Distancia a la línea de calle"><em>m de la calle</em></label></span>`:''}</span>
-    <span class="row">${T.k==='linea'?`<label class="inp sm"><input data-elf="${e.id}:len" data-num inputmode="decimal" value="${String(rr1(elLen(e))).replace('.',',')}" aria-label="Largo"><em>m</em></label>`:`<label class="inp sm"><input data-elf="${e.id}:w" data-num inputmode="decimal" value="${String(rr1(e.w)).replace('.',',')}" aria-label="Ancho"><em>m</em></label>${T.k==='punto'?'':`<label class="inp sm"><input data-elf="${e.id}:l" data-num inputmode="decimal" value="${String(rr1(e.l)).replace('.',',')}" aria-label="Largo"><em>m</em></label>`}`}
+    <span class="row">${T.k==='linea'?`<label class="inp sm"><input data-elf="${e.id}:len" data-num inputmode="decimal" value="${String(rr1(elLen(e))).replace('.',',')}" aria-label="Largo"><em>m</em></label>`:`<label class="inp sm"><input data-elf="${e.id}:w" data-num inputmode="decimal" value="${String(rr1(e.w)).replace('.',',')}" aria-label="Ancho"><em>m</em></label>${T.k==='punto'?'':`<label class="inp sm"><input data-elf="${e.id}:l" data-num inputmode="decimal" value="${String(rr1(e.l)).replace('.',',')}" aria-label="Largo"><em>m</em></label>`}`}${e.t==='altillo'||e.t==='balcon'?`<label class="inp sm"><em>a</em><input data-elf="${e.id}:nivel" data-num inputmode="decimal" value="${String(rr1(+e.nivel||T.nivel)).replace('.',',')}" aria-label="Altura sobre el suelo"><em>m del suelo</em></label>`:''}${e.t==='escalera'?`<label class="inp sm"><em>sube</em><input data-elf="${e.id}:h" data-num inputmode="decimal" value="${String(rr2(e.h)).replace('.',',')}" aria-label="Altura que sube"><em>m</em></label>`:''}${e.t==='piscina'?`<label class="inp sm"><em>fondo</em><input data-elf="${e.id}:hMin" data-num inputmode="decimal" value="${String(rr1(piscDims(e).hm)).replace('.',',')}" aria-label="Fondo menor, parte baja"><em>a</em><input data-elf="${e.id}:h" data-num inputmode="decimal" value="${String(rr1(piscDims(e).hM)).replace('.',',')}" aria-label="Fondo mayor, parte honda"><em>m</em></label>`:''}
     <button class="btn sm ghost" data-eldel="${e.id}" aria-label="Eliminar ${esc(elNombre(e))}">✕</button></span></div>`}).join('')}</div>`:'<p class="note">Se agregan solos al recorrer el terreno con «Medir en vivo», o elige uno aquí.</p>'}
   <div class="fld"><span>Agregar a mano</span><div class="chips">${['porton','reja','radier','ceramico','piscina','quincho','cobertizo','arbol','arbusto','fosa','pozoAbs','camaraIns','medidorAgua','medidorLuz'].map(k=>`<button class="chip" data-eladd="${k}">+ ${ELT[k].n}</button>`).join('')}</div></div>
   <p class="note">Se ubican junto a la casa; ajusta su posición en el recorrido en vivo o con las medidas.</p></div>`}

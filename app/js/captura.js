@@ -60,6 +60,9 @@ const IA_CHILE=`Cómo se ven las cosas en casas chilenas:
 - Zinc: planchas onduladas o trapezoidales. Teja asfáltica: escamas planas. Teja de arcilla o hormigón: piezas curvas o planas rojizas.
 - Radier: losa de hormigón gris. Cerámico o porcelanato exterior: baldosas con juntas. Gravilla: piedrecillas sueltas. Adoquín: bloques pequeños encajados.
 - Cobertizo o carport: techo liviano sobre pilares, sin muros. Quincho: techo con parrilla de ladrillo o metálica. Bodega: caseta cerrada pequeña.
+- Altillo o entrepiso: piso de madera o losa a media altura, dentro de un recinto alto o del quincho, al que se sube por una escalera. Balcón: plataforma elevada fuera de la casa, con baranda.
+- Pilotes o poyos: postes de madera o pilares de hormigón bajo la casa, la terraza o el deck, que los elevan del suelo. Si la casa tiene escalones para entrar, mira si está sobre pilotes.
+- Escalera: cuenta los peldaños (cada uno sube unos 18 cm). Escalera caracol: gira alrededor de un poste. Baranda: pasamanos con barrotes en bordes elevados.
 - Medidor de agua: tapa en el suelo o nicho junto a la reja. Medidor de luz: caja en poste o pilastra con el cable de llegada.`;
 
 /* ---------- 4. dibujos para elegir ---------- */
@@ -103,6 +106,10 @@ const PICTO={
   camaraIns:'<rect x="6" y="6" width="12" height="12"/><path d="M9 9h6v6H9z"/>',
   jardinera:'<path d="M4 14h16l-2 6H6zM8 14c0-3 1-5 4-6M12 14c0-3 2-6 5-6"/>',
   baranda:'<path d="M2 8h20M2 20h20M4 8v12M8 8v12M12 8v12M16 8v12M20 8v12"/>',
+  altillo:'<path d="M3 21V9M21 21V9M3 13h12M15 13v8M15 13l3-4M2 9l10-6 10 6M7 13v-2h4v2"/>',
+  balcon:'<path d="M4 4h16v8H4zM2 12h20M3 12v6M7 12v6M11 12v6M15 12v6M19 12v6M2 18h20"/>',
+  pilote:'<path d="M3 8h18v3H3zM6 11v10M12 11v10M18 11v10M2 21h20"/>',
+  escaleraCaracol:'<circle cx="12" cy="12" r="1.5"/><path d="M12 3a9 9 0 1 1-9 9M12 12l6-6M12 12l-6 6M12 12l7 3M12 12L5 9"/>',
   ventana:'<rect x="4" y="5" width="16" height="13"/><path d="M12 5v13M4 11.5h16M3 18h18"/>',
   puerta:'<path d="M6 21V3h12v18M3 21h18"/><circle cx="15" cy="12" r="1"/>'};
 const picto=k=>PICTO[k]?`<svg class="pic" viewBox="0 0 24 24" aria-hidden="true">${PICTO[k]}</svg>`:'';

@@ -167,7 +167,7 @@ function vEditExtras(e){const T=eltOf(e);let h='';const chips=(k,opts,cur)=>`<di
   return h}
 function vEditHTML(){const e=VV.elems.find(x=>x.id===VV.sel);if(!e){VV.sub=null;return''}const T=eltOf(e);
   const f=(lab,k,v)=>`<label class="fld"><span>${lab}</span><div class="inp"><input data-vef="${k}" inputmode="decimal" value="${String(rr2(v)).replace('.',',')}"><em>m</em></div></label>`;
-  const dims=T.k==='linea'?f('Largo','len',elLen(e))+f('Alto','h',e.h):T.k==='punto'?f('Diámetro','w',e.w)+f('Alto','h',e.h):f('Ancho','w',e.w)+f('Largo','l',e.l)+(T.k==='vol'||e.t==='piscina'||e.t==='escalera'||e.t==='jardinera'?f(e.t==='piscina'?'Profundidad':'Alto','h',e.h):'');
+  const dims=T.k==='linea'?f('Largo','len',elLen(e))+f('Alto','h',e.h):T.k==='punto'?f('Diámetro','w',e.w)+f('Alto','h',e.h):(e.t==='piscina'?f('Largo','l',e.l)+f('Ancho','w',e.w)+f('Fondo menor (parte baja)','hMin',piscDims(e).hm)+f('Fondo mayor (parte honda)','h',piscDims(e).hM):f('Ancho','w',e.w)+f('Largo','l',e.l))+(e.t==='altillo'||e.t==='balcon'?f('Altura sobre el suelo','nivel',+e.nivel||T.nivel):'')+(T.k==='vol'||e.t==='escalera'||e.t==='jardinera'?f(e.t==='piscina'?'Profundidad':'Alto','h',e.h):'');
   return`<p class="vq">${esc(elNombre(e))}${e.sug?' <span class="badge">Reconocido por la IA</span>':''}</p>${e.det?`<p class="vh">${esc(e.det)}</p>`:''}
     <div class="vin vdims">${dims}</div>${vEditExtras(e)}
     <div class="vpad"><span class="lbl">Mover 25 cm</span>${veBtn('mv:-1:0','←','btn sm')}${veBtn('mv:0:-1','Hacia la calle','btn sm')}${veBtn('mv:0:1','Hacia el fondo','btn sm')}${veBtn('mv:1:0','→','btn sm')}${T.k!=='punto'?veBtn('rot','Girar 15°','btn sm')+veBtn('rot90','Girar 90°','btn sm'):''}</div>
@@ -196,6 +196,9 @@ function vSugHTML(){const L=vSugPend();if(!L.length){VV.sub=null;VV.sel=null;VV.
     let body='';
     if(T.k==='linea')body=`<div class="vin vdims">${f('Largo','len',elLen(o))}${f('Alto','h',o.h)}</div>`;
     else if(T.k==='punto')body=`<div class="vin vdims">${f('Diámetro','w',o.w)}${f('Alto','h',o.h)}</div>`;
+    else if(o.t==='altillo'||o.t==='balcon'){body=`<div class="vin vdims">${f('Ancho','w',o.w)}${f('Largo','l',o.l)}</div><div class="vin vdims">${f('Altura del piso sobre el suelo','nivel',+o.nivel||T.nivel)}</div><p class="vh">${o.t==='altillo'?'Mide desde el piso de abajo hasta el piso del altillo.':'Mide desde el suelo hasta el piso del balcón.'}</p>`}
+    else if(o.t==='escalera'){const n=Math.max(1,Math.round((+o.h||1)/.18));body=`<div class="vin vdims">${f('Ancho','w',o.w)}${f('Largo (en planta)','l',o.l)}</div><div class="vin vdims">${f('Altura que sube','h',o.h)}</div><div class="fld"><span>Peldaños</span>${chips('peld',Object.fromEntries([n-2,n-1,n,n+1,n+2].filter(x=>x>0).map(x=>[x,String(x)])),o.peld||n)}</div><p class="vh">Cuenta los peldaños: cada uno sube unos 18 cm.</p>`}
+    else if(o.t==='piscina'){const d=piscDims(o);body=`<div class="fld"><span>Forma</span>${chips('forma',FORMAS,o.forma||'rect')}</div><div class="vin vdims">${f('Largo','l',d.largo)}${f('Ancho','w',d.ancho)}</div><div class="vin vdims">${f('Fondo menor (parte baja)','hMin',d.hm)}${f('Fondo mayor (parte honda)','h',d.hM)}</div><p class="vh">Mide el fondo desde el borde hasta el piso de la piscina, con la huincha o una vara. Si tiene un solo fondo, escribe el mismo en ambos.</p>`}
     else{body=`<div class="fld"><span>Forma de la planta</span>${chips('forma',FORMAS,o.forma||'rect')}</div><div class="vin vdims">${f(o.forma==='circulo'?'Diámetro':'Ancho','w',o.w)}${o.forma==='circulo'?'':f('Largo','l',o.l)}${T.k==='vol'&&!T.edif?f('Alto','h',o.h):''}</div>`;
       if(T.edif)body+=`<div class="fld"><span>Pisos</span>${chips('pisos',{1:'1',2:'2',3:'3'},o.pisos||1)}</div><div class="fld"><span>Techo</span>${chips('techo',TECHOS,o.techo||'dos_aguas')}</div>`;
       if(o.forma==='libre')body+=`<p class="vh">Ajusta los vértices arrastrándolos en la vista 2D del croquis.</p>`}
@@ -207,7 +210,7 @@ function vSugHTML(){const L=vSugPend();if(!L.length){VV.sub=null;VV.sel=null;VV.
 function vDetBoxCommit(){const e=VV.elems.find(q=>q.id===VV.val?.id);const nb=VV._detBox;VV._detBox=null;if(!e||!nb||!e.caja)return;vSnap();
   const rw=(nb[2]-nb[0])/((e.caja[2]-e.caja[0])||1),rh=(nb[3]-nb[1])/((e.caja[3]-e.caja[1])||1),T=eltOf(e);
   if(T.k==='linea')elSetLen(e,rr2(elLen(e)*rw));else{e.w=rr2(e.w*rw);if(T.k==='punto')e.l=e.w;else if(e.forma==='libre'&&e.pts)e.pts=e.pts.map(p=>[p[0]*rw,p[1]])}
-  if(T.k!=='area'||e.t==='piscina')e.h=rr2((+e.h||T.h||1)*rh);e.caja=nb;vPanel();vCroquis()}
+  if(T.k!=='area')e.h=rr2((+e.h||T.h||1)*rh);e.caja=nb;vPanel();vCroquis()}
 function vAceptar(e){vSnap();delete e.sug;delete e.alt;VV.val=null;VV.sel=null;VV.escenaVista=1;VV.sub=vSugPend().length?'sug':null;vPanel();vCroquis()}
 function vListHTML(){const E=VV.elems,M=VV.marks;
   return`<p class="vq">Lo registrado</p>${!E.length&&!M.length?'<p class="vh">Todavía no hay elementos ni puertas o ventanas.</p>':''}
