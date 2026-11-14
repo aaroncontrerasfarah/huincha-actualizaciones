@@ -49,13 +49,13 @@ const GeoLot={
 /* ---------- interfaz del mapa ---------- */
 const MV={map:null,geo:null,mode:'lote',layer:null,me:null,tilesOk:false,tileErr:0};
 function openMap(){if(!window.L){toast('No se pudo cargar el mapa. Revisa tu conexión.');return}
-  const g=P.lote.geo;MV.geo={pts:(g?.pts||[]).map(p=>p.slice()),casa:(g?.casa||[]).map(p=>p.slice()),extras:(g?.extras||[]).map(x=>({...x,pts:x.pts.map(p=>p.slice())})),comps:(g?.comps||[]).map(x=>({...x,p:x.p.slice()})),compP:null,otra:[],frente:g?.frente||0};MV.mode='lote';MV.tilesOk=false;MV.tileErr=0;
+  const g=P.lote.geo;MV.geo={pts:(g?.pts||[]).map(p=>p.slice()),casa:(g?.casa||[]).map(p=>p.slice()),extras:(g?.extras||[]).map(x=>({...x,pts:x.pts.map(p=>p.slice())})),comps:(g?.comps||[]).map(x=>({...x,p:x.p.slice()})),compP:null,otra:[],frente:g?.frente||0};dibInit();MV.calles=P.lote.calles?{...P.lote.calles}:null;MV.mode='lote';MV.tilesOk=false;MV.tileErr=0;
   const ov=document.createElement('div');ov.className='mapov';ov.id='mapov';
   ov.innerHTML=`<div class="mtop"><div class="inp msearch"><input id="msearch" type="search" placeholder="Buscar dirección o comuna" value="${esc([P.meta.direccion,P.meta.comuna].filter(Boolean).join(', '))}" autocomplete="off"></div>
     <button class="btn sm" data-mact="buscar">Buscar</button><button class="btn sm" data-mact="gps" aria-label="Ir a mi ubicación">GPS</button><button class="btn sm dark" data-mact="cerrar" aria-label="Cerrar mapa">✕</button></div>
     <div class="mwrap"><div class="mmap" id="mmap"></div><div class="mcross" aria-hidden="true"></div>
-      <div class="mtools"><button class="btn sm" data-mact="fuente" id="mfuente">Imagen 1</button><label class="btn sm"><input type="file" accept="image/*" data-aerea hidden>Foto aérea propia</label><button class="btn sm" data-mact="aeredit" id="maere" hidden>Ajustar foto aérea</button><span class="mzl" id="mzl"></span></div></div>
-    <div class="mbar"><div class="seg"><button class="btn sm" data-mmode="lote">Terreno</button><button class="btn sm" data-mmode="casa">Casa</button><button class="btn sm" data-mmode="otra">Construcciones</button><button class="btn sm" data-mmode="comp">Componentes</button></div>
+      <div class="mtools"><button class="btn sm" data-mact="fuentes" id="mfuente">Imagen: actual</button><span class="mzl" id="mfecha"></span><label class="btn sm"><input type="file" accept="image/*" data-aerea hidden>Foto aérea propia</label><button class="btn sm" data-mact="aeredit" id="maere" hidden>Ajustar foto aérea</button><span class="mzl" id="mzl"></span></div></div>
+    <div class="mbar"><div class="seg"><button class="btn sm" data-mmode="lote">Terreno</button><button class="btn sm" data-mmode="casa">Casa</button><button class="btn sm" data-mmode="dib">Dibujar</button></div>
     <p class="mhelp" id="mhelp"></p><div id="mres"></div>
     <div class="row"><button class="btn sm dark" data-mact="mira">+ Marcar en la mira</button><button class="btn sm" data-mact="deshacer">Deshacer punto</button><button class="btn sm" data-mact="borrar">Borrar</button><button class="btn pri" data-mact="usar" id="musar">Usar estas medidas</button></div></div>`;
   document.body.appendChild(ov);document.body.classList.add('noscroll');
@@ -65,10 +65,10 @@ function openMap(){if(!window.L){toast('No se pudo cargar el mapa. Revisa tu con
   MV.refs=[L.tileLayer(MAPA.calles,{maxNativeZoom:18,maxZoom:Z,opacity:.55}).addTo(map),L.tileLayer(MAPA.nombres,{maxNativeZoom:18,maxZoom:Z}).addTo(map)];
   if(window.ResizeObserver){MV.ro=new ResizeObserver(()=>MV.map?.invalidateSize({pan:false}));MV.ro.observe($('#mmap'))}
   map.on('zoomanim',()=>{if(MV.aerImg)MV.aerImg.style.visibility='hidden'});map.on('zoomend moveend viewreset resize',aerRender);if(P.lote.aerea)aerCargar(P.lote.aerea);
-  map.on('zoomend',mapZoomInfo);map.on('moveend',mapNativeCheck);$('#mfuente').textContent='Imagen '+MV.fuente;
+  map.on('zoomend',mapZoomInfo);map.on('moveend',mapNativeCheck);{let tf=0;map.on('moveend',()=>{clearTimeout(tf);tf=setTimeout(fechaToma,700)})}if(MV.fuenteId&&MV.fuenteId!=='esri')wbCargar().then(()=>fuenteSel(MV.fuenteId));
   base.on('tileload',()=>{MV.tilesOk=true});base.on('tileerror',()=>{MV.tileErr++;if(!MV.tilesOk&&MV.tileErr===4)mapHelp()});
   MV.layer=L.layerGroup().addTo(map);
-  map.on('click',e=>{if(MV.mode==='aerea')return;if(MV.mode==='comp'){MV.geo.compP=[e.latlng.lat,e.latlng.lng];drawMap();return}const arr=mArr();arr.push([e.latlng.lat,e.latlng.lng]);drawMap()});
+  map.on('click',e=>{if(MV.mode==='aerea')return;if(dibClick(e.latlng))return;if(MV.mode==='comp'){MV.geo.compP=[e.latlng.lat,e.latlng.lng];drawMap();return}const arr=mArr();arr.push([e.latlng.lat,e.latlng.lng]);drawMap()});
   const all=[...MV.geo.pts,...MV.geo.casa];
   if(all.length)map.fitBounds(L.latLngBounds(all).pad(0.4),{maxZoom:20});
   else if(g?.center)map.setView(g.center,g.zoom||19);
@@ -111,7 +111,7 @@ function aerGuardar(){const A=MV.aer;if(!A)return;A.edit=false;const eb=$('#maer
   if(g?.pts?.length>=3)try{plan=GeoLot.compute({pts:g.pts,frente:g.frente,casa:[]}).toPlanLL(A.pts)}catch(e){}
   P.lote.aerea={ref:A.ref,pts:A.pts,op:A.op,plan};persist();aerHandles();MV.mode='lote';drawMap();toast('Foto aérea fijada. Se verá en el mapa y en el croquis 3D.')}
 function closeMap(){MV.aerImg?.remove();MV.aerImg=null;MV.aer=null;MV.aerLay=null;MV.ro?.disconnect();MV.ro=null;if(MV.map){MV.map.remove();MV.map=null}$('#mapov')?.remove();document.body.classList.remove('noscroll')}
-function mapHelp(){const h=$('#mhelp');if(!h)return;const a=MV.geo;const al=fmt(P.casa.alero||0);
+function mapHelp(){const h=$('#mhelp');if(!h)return;const a=MV.geo;const al=fmt(P.casa.alero||0);if(dibHelp(h))return;
   if(!MV.tilesOk&&MV.tileErr>=4&&!a.pts.length){h.innerHTML='<b>No se pudieron cargar las imágenes satelitales.</b> Revisa la conexión. En la vista previa del navegador están bloqueadas; en la app instalada funcionan.';return}
   if(MV.mode==='casa'){h.textContent=a.casa.length<3?`Marca en orden todas las esquinas del techo de la casa, con la mira o tocando el mapa (${a.casa.length} marcadas). Si la casa es en L o tiene otra forma, marca cada quiebre. La app descuenta el alero de ${al} m.`:`${a.casa.length} esquinas. Sigue marcando si hay más quiebres, o arrastra para ajustar al borde del techo.`;return}
   if(MV.mode==='aerea'){const A=MV.aer;h.innerHTML=`<b>Alinea tu foto aérea.</b> Arrastra los puntos 1, 2 y 3 sobre las mismas esquinas en el mapa (cercos, esquinas de la casa) y ✥ para moverla entera.
@@ -135,7 +135,7 @@ function drawMap(){const m=MV.map;if(!m)return;const G=MV.geo,lay=MV.layer;lay.c
     for(const x of G.extras||[])add(L.polygon(x.pts,{color:'#ff5a1f',weight:2,fillColor:'#ff5a1f',fillOpacity:.15,interactive:false}));
     for(const x of G.comps||[])add(L.marker(x.p,{interactive:false,icon:L.divIcon({className:'mcomp',html:`<span>${esc(MCOMP[x.tipo]||x.tipo)}</span>`,iconSize:null})}));
     if(G.compP)add(L.circleMarker(G.compP,{radius:9,color:'#fff',weight:3,fillColor:'#ff5a1f',fillOpacity:1,interactive:false}));
-    if(G.otra?.length>=2)add(L.polygon(G.otra,{color:'#ff5a1f',weight:2,dashArray:'5 4',fillOpacity:.08,interactive:false}))}
+    if(G.otra?.length>=2)add(L.polygon(G.otra,{color:'#ff5a1f',weight:2,dashArray:'5 4',fillOpacity:.08,interactive:false}));dibDraw(add,lay)}
   drawShapes();
   G.pts.forEach((p,i)=>vtx(G.pts,i,'lote',i+1));G.casa.forEach((p,i)=>vtx(G.casa,i,'casa','C'+(i+1)));(G.otra||[]).forEach((p,i)=>vtx(G.otra,i,'otra',i+1));
   mapHelp();
@@ -155,7 +155,7 @@ async function mapGps(quiet){const done=(lat,lng,acc)=>{if(!MV.map)return;MV.map
   try{if(GP){try{await GP.requestPermissions()}catch(e){}const p=await GP.getCurrentPosition({enableHighAccuracy:true,timeout:15000});done(p.coords.latitude,p.coords.longitude,p.coords.accuracy);return true}
     if(!navigator.geolocation)throw 0;await new Promise((res,rej)=>navigator.geolocation.getCurrentPosition(p=>{done(p.coords.latitude,p.coords.longitude,p.coords.accuracy);res()},rej,{enableHighAccuracy:true,timeout:15000}));return true}
   catch(e){if(!quiet)toast('No se pudo obtener tu ubicación. Revisa que el GPS y el permiso de ubicación estén activos.');return false}}
-function applyMap(){const res=GeoLot.compute(MV.geo,+P.casa.alero||0);if(!res)return;const lo=P.lote,c=P.casa,rr=v=>Math.round(v*100)/100;
+async function applyMap(){if(!MV.calles&&MV.geo.pts.length>=3)await callesBuscar(true);if(!MV.map)return;const res=GeoLot.compute(MV.geo,+P.casa.alero||0);if(!res)return;const lo=P.lote,c=P.casa,rr=v=>Math.round(v*100)/100;
   lo.frente=rr(res.frente);lo.fondo=rr(res.fondo);lo.norte=Math.round(res.norte);lo.norteMapa=lo.norte;lo.norteElegido=null;lo.norteOk=true;lo.plan=res.plan.map(p=>[Math.round(p[0]*1000)/1000,Math.round(p[1]*1000)/1000]);lo.fuente='mapa';
   lo.geo={pts:MV.geo.pts,casa:MV.geo.casa,frente:res.fi,center:[MV.map.getCenter().lat,MV.map.getCenter().lng],zoom:MV.map.getZoom()};delete P.ok['lote-mapa'];
   let casaOk=false;if(res.casa&&$('#mcasa-apply')?.checked){Object.assign(c,{ancho:rr(res.casa.ancho),largo:rr(res.casa.largo),retiroIzq:rr(res.casa.retiroIzq),retiroFrontal:rr(res.casa.retiroFrontal),fuente:'mapa'});delete P.ok['casa-mapa'];casaOk=true;c.contornoMapa=res.casa.contorno||null}
@@ -167,8 +167,8 @@ function applyMap(){const res=GeoLot.compute(MV.geo,+P.casa.alero||0);if(!res)re
     for(const x of res.comps){const p0=[x.plan[0]-ox,x.plan[1]-oy];let dir=[1,0];
       if(ELT[x.tipo]?.k==='linea'&&LP){let best=1e9;for(let i=0;i<LP.length;i++){const a=LP[i],b=LP[(i+1)%LP.length],dx=b[0]-a[0],dy=b[1]-a[1],L2=dx*dx+dy*dy||1,t=Math.max(0,Math.min(1,((x.plan[0]-a[0])*dx+(x.plan[1]-a[1])*dy)/L2)),d=Math.hypot(x.plan[0]-a[0]-dx*t,x.plan[1]-a[1]-dy*t);if(d<best){best=d;dir=[dx,dy]}}}
       const e=elemNew(x.tipo,p0,dir);if(ELT[x.tipo]?.k==='linea')elMove(e,-(e.b[0]-e.a[0])/2,-(e.b[1]-e.a[1])/2);e.origen='mapa-c';e.est=true;P.elementos.push(e)}}
-  lo.geo.extras=MV.geo.extras;lo.geo.comps=MV.geo.comps;if(MV.aer&&lo.aerea){try{lo.aerea.plan=res.toPlanLL(MV.aer.pts);lo.aerea.pts=MV.aer.pts}catch(e){}}
-  persist();closeMap();render();toast((casaOk?'Medidas del terreno y de la casa cargadas desde el mapa':'Medidas del terreno cargadas desde el mapa')+(nx?`, más ${nx} construcción${nx>1?'es':''}`:'')+(nc?` y ${nc} componente${nc>1?'s':''}`:'')+'.');if(UI.trasMapa){UI.trasMapa=null;vivoOpen().then(()=>{if(VV?.guia)vGuiaIr(1)})}}
+  const nd=dibAplicar(res);if(MV.aer&&lo.aerea){try{lo.aerea.plan=res.toPlanLL(MV.aer.pts);lo.aerea.pts=MV.aer.pts}catch(e){}}
+  persist();closeMap();render();toast((casaOk?'Medidas del terreno y de la casa cargadas desde el mapa':'Medidas del terreno cargadas desde el mapa')+(nd?`, más ${nd} elemento${nd>1?'s':''} dibujado${nd>1?'s':''}`:'')+(P.lote.calle&&P.lote.calleAuto?` · calle: ${P.lote.calle}`:'')+'.');if(UI.trasMapa){UI.trasMapa=null;vivoOpen().then(()=>{if(VV?.guia)vGuiaIr(1)})}}
 document.addEventListener('click',e=>{const b=e.target.closest('[data-mact],[data-mmode],[data-mfrente]');if(!b||!$('#mapov'))return;const d=b.dataset;
   if(d.mmode){MV.mode=d.mmode;drawMap();return}
   if(d.mfrente!=null){MV.geo.frente=+d.mfrente;drawMap();return}
@@ -176,12 +176,12 @@ document.addEventListener('click',e=>{const b=e.target.closest('[data-mact],[dat
     case 'cerrar':closeMap();if(UI.trasMapa){UI.trasMapa=null;vivoOpen()}break;
     case 'buscar':{const q=$('#msearch').value.trim();if(q)mapSearch(q);break}
     case 'gps':mapGps();break;
-    case 'mira':{if(MV.mode==='aerea')break;if(MV.mode==='comp'){const c=MV.map.getCenter();MV.geo.compP=[c.lat,c.lng];drawMap();break}const arr=mArr();
+    case 'mira':{if(MV.mode==='aerea')break;if(MV.mode==='dib'||MV.cumb){dibClick(MV.map.getCenter());break}if(MV.mode==='comp'){const c=MV.map.getCenter();MV.geo.compP=[c.lat,c.lng];drawMap();break}const arr=mArr();
       const c=MV.map.getCenter();arr.push([c.lat,c.lng]);drawMap();break}
     case 'fuente':{MV.fuente=MV.fuente===2?1:2;MV.base.setUrl(MV.fuente===2?MAPA.capa2:MAPA.capa);MV.base.options.maxNativeZoom=19;b.textContent='Imagen '+MV.fuente;mapNativeCheck();
       toast(MV.fuente===2?'Imagen 2: otra toma satelital. Usa la que se vea más nítida.':'Imagen 1: toma satelital principal.');break}
-    case 'deshacer':{if(MV.mode==='comp'){if(MV.geo.compP)MV.geo.compP=null;else MV.geo.comps.pop();drawMap();break}const arr=mArr();if(arr.length)arr.pop();else if(MV.mode==='otra'&&MV.geo.extras.length){MV.geo.extras.pop();toast('Se quitó la última construcción.')}drawMap();break}
-    case 'borrar':if(MV.mode==='casa')MV.geo.casa=[];else if(MV.mode==='otra'){MV.geo.otra=[];MV.geo.extras=[]}else if(MV.mode==='comp'){MV.geo.comps=[];MV.geo.compP=null}else{MV.geo.pts=[];MV.geo.frente=0}drawMap();break;
+    case 'deshacer':{if(MV.mode==='dib'){if(MV.geo.cur.length)MV.geo.cur.pop();else if(MV.geo.dib.length){MV.geo.dib.pop();MV.sel=null;toast('Se quitó el último dibujo.')}drawMap();break}if(MV.cumb||(MV.mode==='casa'&&!MV.geo.casa.length&&MV.geo.techo?.cumb?.length)){MV.geo.techo.cumb.pop();drawMap();break}if(MV.mode==='comp'){if(MV.geo.compP)MV.geo.compP=null;else MV.geo.comps.pop();drawMap();break}const arr=mArr();if(arr.length)arr.pop();else if(MV.mode==='otra'&&MV.geo.extras.length){MV.geo.extras.pop();toast('Se quitó la última construcción.')}drawMap();break}
+    case 'borrar':if(MV.mode==='dib'){const it=MV.geo.dib.find(x=>x.id===MV.sel);if(it){MV.geo.dib=MV.geo.dib.filter(x=>x!==it);MV.sel=null}else MV.geo.cur=[];drawMap();break}if(MV.mode==='casa')MV.geo.casa=[];else if(MV.mode==='otra'){MV.geo.otra=[];MV.geo.extras=[]}else if(MV.mode==='comp'){MV.geo.comps=[];MV.geo.compP=null}else{MV.geo.pts=[];MV.geo.frente=0}drawMap();break;
     case 'aerok':aerGuardar();break;
     case 'aerop':if(MV.aer){MV.aer.op=+b.dataset.v;aerRender();drawMap()}break;
     case 'aerdel':MV.aerImg?.remove();MV.aerImg=null;MV.aer=null;aerHandles();delete P.lote.aerea;persist();MV.mode='lote';drawMap();toast('Foto aérea quitada.');break;

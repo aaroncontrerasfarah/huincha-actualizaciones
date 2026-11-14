@@ -37,7 +37,7 @@ document.addEventListener('click',e=>{const b=e.target.closest('[data-tch]');if(
 
 /* ---------- cubicación de la techumbre ---------- */
 function techuCubica(){const c=P.casa,t=P.techumbre||{},rows=[];const W=+c.ancho||0,L=+c.largo||0,a=+c.alero||0,h=+c.hTecho||0;if(!(W>0&&L>0)||c.techo==='plana')return rows;
-  const ri=roofInfo(),par=c.cumbrera==='paralela',dos=c.techo==='dos-aguas';
+  const ri=roofInfo(),hip=c.techo==='cuatro-aguas',par=hip?W>=L:c.cumbrera==='paralela',dos=c.techo==='dos-aguas'||hip;
   if(t.estructura&&t.estructura!=='losa'){const sep=+t.sep||(t.estructura==='vigas'?0.6:0.9);const largoCumbrera=dos?(par?W:L):W,luz=dos?(par?L:W):L;const n=Math.floor(largoCumbrera/sep)+1;
     const S=luz+2*a,sup=dos?2*Math.hypot(S/2,h):Math.hypot(S,h);const webs={fink:1.0,howe:1.1,pratt:1.1,pendolon:.5,tijera:.6,mansarda:1.3}[t.cerchaTipo]||1.0;
     const ml=t.estructura==='vigas'?sup:sup+luz+webs*luz;const mat=techuVal('cerchaMat')||'';const sec=t.seccion?' '+techuVal('seccion'):'';
@@ -48,7 +48,7 @@ function techuCubica(){const c=P.casa,t=P.techumbre||{},rows=[];const W=+c.ancho
   if(t.bajoCub&&t.bajoCub!=='ninguna')rows.push([`Bajo cubierta: ${techuVal('bajoCub').toLowerCase()} (con traslapos)`,'m²',ri.area*1.12]);
   if(t.aislacion&&t.aislacion!=='ninguna'){rows.push([`Aislación: ${techuVal('aislacion').toLowerCase()}${t.aislEsp?' '+t.aislEsp+' mm':''}`,'m²',W*L]);if(t.barrera==='si')rows.push(['Barrera de vapor (polietileno)','m²',W*L*1.1])}
   if(t.canal&&t.canal!=='ninguna'){rows.push([`Canales de ${techuVal('canal').toLowerCase()}`,'ml',ri.eaves||0]);if(t.bajadas)rows.push(['Bajadas de agua lluvia','un',+t.bajadas])}
-  if(dos&&t.cumbreraRem&&t.cumbreraRem!=='ninguno')rows.push([`Remate de cumbrera: ${techuVal('cumbreraRem').toLowerCase()}`,'ml',(par?W:L)+2*a]);
+  if(dos&&t.cumbreraRem&&t.cumbreraRem!=='ninguno'){const sp=Math.min(W,L)/2;rows.push([`Remate de cumbrera${hip?' y limatesas':''}: ${techuVal('cumbreraRem').toLowerCase()}`,'ml',hip?Math.abs(W-L)+4*Math.hypot(Math.SQRT2*(sp+a),h):(par?W:L)+2*a])}
   return rows}
 function techuSpec(){const t=P.techumbre||{},out=[];if(!Object.keys(t).length)return out;
   if(t.estructura)out.push(['Estructura de techumbre',[techuVal('estructura'),t.cerchaTipo&&t.estructura==='cercha'?'tipo '+techuVal('cerchaTipo').toLowerCase():'',t.cerchaMat?techuVal('cerchaMat').toLowerCase():'',t.seccion?techuVal('seccion'):'',t.sep?'a '+techuVal('sep'):''].filter(Boolean).join(', ')]);

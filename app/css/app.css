@@ -510,3 +510,17 @@ body.ar-on>header,body.ar-on>main,body.ar-on::before{visibility:hidden}
 .gd-fl{fill:none;stroke:#d9480f;stroke-width:1.6;stroke-dasharray:4 2.5}.gd-mk{fill:#d9480f}
 .gd-t{font-size:5px;text-anchor:middle;fill:#555}
 .vh.tip{font-size:12.5px;opacity:.85}
+/* mapa: fuentes de imagen, dibujo, calles */
+.mfsheet{position:absolute;left:8px;right:8px;top:52px;z-index:1000;max-height:62%;overflow:auto;background:#fff;border-radius:14px;box-shadow:0 8px 28px rgba(0,0,0,.3);padding:12px;display:flex;flex-direction:column;gap:6px}
+.mfo{display:block;width:100%;text-align:left;padding:10px 12px;border:1.5px solid var(--line,#d6dbd9);border-radius:10px;background:#fff;font:inherit;color:inherit;cursor:pointer}
+.mfo.on{border-color:#e0a800;background:#fff8e1;font-weight:600}
+#mfecha{background:rgba(0,0,0,.55);color:#fff}
+#mfecha:empty{display:none}
+.mcalle span{display:inline-block;transform:translate(-50%,-50%);background:rgba(40,44,48,.82);color:#fff;font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;padding:2px 7px;border-radius:4px;white-space:nowrap}
+.mcalle.osm span{background:rgba(25,95,170,.85)}
+.mtexto span{display:inline-block;transform:translate(-50%,-130%);background:#fff;color:#1b1e20;font-size:12px;font-weight:600;padding:2px 6px;border-radius:4px;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.4)}
+.mlen.casa span{background:#fff;color:#1b1e20}
+.mtecho{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.dgrp{margin-top:6px}.dgrp .lbl{display:block;margin-bottom:3px}
+.dlens{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}.dlens .lbl{width:100%}
+.dlens .inp.sm{width:auto;max-width:150px}.dlens .inp.sm input{width:60px}

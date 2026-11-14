@@ -7,7 +7,7 @@ const FLADO=[{k:'frontal',n:'Fachada principal',ins:'Párate frente al centro de
   {k:'derecho',n:'Costado derecho',ins:'Camina al costado derecho de la casa (mirando desde la calle) y párate frente a su centro, lo más lejos que permita el terreno.'},
   {k:'posterior',n:'Fachada posterior',ins:'Ve al patio y párate frente al centro de la fachada de atrás, a 5 o 6 pasos.'},
   {k:'izquierdo',n:'Costado izquierdo',ins:'Camina al costado izquierdo de la casa y párate frente a su centro, lo más lejos que permita el terreno.'}];
-const FTECHO={'dos-aguas':'Dos aguas','un-agua':'Un agua','plana':'Plano'};
+const FTECHO={'dos-aguas':'Dos aguas','cuatro-aguas':'Cuatro aguas','un-agua':'Un agua','plana':'Plano'};
 const FVANO={puerta:'Puerta',ventana:'Ventana',ventanal:'Ventanal',porton_garage:'Portón de garaje'};
 
 function promptFachada(lado,ctx){return`Eres arquitecto y analizas una foto de una vivienda chilena para levantar sus planos.

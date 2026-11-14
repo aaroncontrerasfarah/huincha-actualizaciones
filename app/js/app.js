@@ -106,9 +106,12 @@ function geom(){const c=P.casa,W=+c.ancho||0,L=+c.largo||0,H=+c.altura||2.4;cons
 const lineOf=(G,q)=>G.lines.find(l=>l.ax===q.ax&&near(l.c,q.c));
 function edgeMatch(q,r){if(q.ax==='h')return(near(q.c,r.y)||near(q.c,r.y+r.largo))&&q.s<r.x+r.ancho-EPS&&q.e>r.x+EPS;
   return(near(q.c,r.x)||near(q.c,r.x+r.ancho))&&q.s<r.y+r.largo-EPS&&q.e>r.y+EPS}
+/* quiebres del techo a lo largo de un eje (para elevaciones, cortes y 3D) */
+function roofBps(ax){const c=P.casa,W=+c.ancho||0,L=+c.largo||0,a=+c.alero||0,len=ax==='x'?W:L;const b=[-a,0,len/2,len,len+a];if(c.techo==='cuatro-aguas'){const sp=Math.min(W,L)/2;b.push(sp,len-sp)}return[...new Set(b.map(v=>Math.round(v*1000)/1000))].sort((p,q)=>p-q)}
 function roofZ(x,y){const c=P.casa,W=c.ancho,L=c.largo,H=c.altura,h=+c.hTecho||0;
   if(c.techo==='plana'||!(W>0&&L>0))return H+0.2;
   if(c.techo==='un-agua')return H+h*(1-y/L);
+  if(c.techo==='cuatro-aguas'){const sp=Math.min(W,L)/2;return H+h*Math.min(x,W-x,y,L-y)/sp}
   if(c.cumbrera==='paralela')return H+h*(1-Math.abs(y-L/2)/(L/2));
   return H+h*(1-Math.abs(x-W/2)/(W/2))}
 /* ============ terreno: polígono ============ */
@@ -132,6 +135,7 @@ const usesColor=cat=>!!MATS[cat]?.opts[P.mat[cat]]?.useColor;
 function roofInfo(){const c=P.casa,W=+c.ancho||0,L=+c.largo||0,h=+c.hTecho||0,a=+c.alero||0;let m=0,eaves=0;
   if(c.techo==='dos-aguas'){const par=c.cumbrera==='paralela';const span=par?L:W;m=span>0?h/(span/2):0;eaves=2*((par?W:L)+2*a)}
   else if(c.techo==='un-agua'){m=L>0?h/L:0;eaves=W+2*a}
+  else if(c.techo==='cuatro-aguas'){const sp=Math.min(W,L);m=sp>0?h/(sp/2):0;eaves=2*(W+L+4*a)}
   const f=Math.sqrt(1+m*m);return{m,deg:Math.atan(m)*180/Math.PI,pct:m*100,area:(W+2*a)*(L+2*a)*f,fascia:2*(W+2*a+L+2*a),eaves}}
 /* Cubicación referencial: cantidades netas desde las medidas del levantamiento */
 function cubica(){const G=geom(),c=P.casa,W=G.W,L=G.L,H=G.H,M=P.mat;const R=P.recintos.filter(valid);const rows=[];if(!(W>0&&L>0))return rows;
@@ -160,7 +164,7 @@ function specRows(){const c=P.casa,M=P.mat,ri=roofInfo();
     ['Zócalo',M.zocalo&&M.zocalo!=='ninguno'?mn('zocalo',M.zocalo)+(usesColor('zocalo')?', color '+colorName(COL_EXT,M.colorZocalo).toLowerCase():'')+', 0,60 m de alto':'Sin zócalo'],
     ['Tapacán y molduras',mn('molduras',M.molduras)+(usesColor('molduras')?', color '+colorName(COL_MOLD,M.colorMolduras).toLowerCase():'')],
     ['Cubierta',mn('cubierta',M.cubierta)+(usesColor('cubierta')?', color '+colorName(COL_TECHO,M.colorCubierta).toLowerCase():'')],
-    ['Techumbre',c.techo==='plana'?'Techo plano':`${c.techo==='dos-aguas'?'Dos aguas':'Un agua'}, pendiente ${fmt(ri.pct,0)} % (${fmt(ri.deg,0)}°), alero ${fmt(c.alero)} m`],
+    ['Techumbre',c.techo==='plana'?'Techo plano':`${c.techo==='dos-aguas'?'Dos aguas':c.techo==='cuatro-aguas'?'Cuatro aguas':'Un agua'}, pendiente ${fmt(ri.pct,0)} % (${fmt(ri.deg,0)}°), alero ${fmt(c.alero)} m`],
     ...techuSpec(),...instalSpec(),
     ['Ventanas',`${mn('ventanas',M.ventanas)}, ${mn('vidrio',M.vidrio).toLowerCase()}`],
     ['Puertas',mn('puertas',M.puertas)+(usesColor('puertas')?', color '+colorName(COL_MOLD,M.colorPuertas).toLowerCase():'')],
@@ -200,6 +204,7 @@ function CH(){const it=[],req=[];const c=P.casa,lo=P.lote,m=P.meta;
   if(c.fuente==='mapa')rev(false,{id:'casa-mapa',step:3,msg:'Las medidas de la casa vienen del techo visto en el mapa.',hint:'Mide al menos la fachada principal por fuera, de esquina a esquina, y corrige si hace falta.',field:'f-casa-ancho'});
   const LP=lotPoly(),inLot=()=>{const x0=c.retiroIzq+0.02,x1=c.retiroIzq+c.ancho-0.02,y0=c.retiroFrontal+0.02,y1=c.retiroFrontal+c.largo-0.02;return[[x0,y0],[x1,y0],[x1,y1],[x0,y1]].every(q=>inPoly(q[0],q[1],LP))};
   if(LP&&c.ancho>0&&c.largo>0)need(inLot(),{step:3,msg:'La casa no cabe en el terreno con estas medidas.',hint:'Revisa los retiros, el tamaño de la casa o las medidas del terreno.',field:'f-casa-retiroIzq'});
+  rev(!c.hTechoEst,{id:'htecho-est',step:3,msg:'La altura del techo se estimó desde el mapa, con una pendiente típica. ¿La confirmas?',hint:'Compárala con la foto de un costado o mide desde el cielo hasta la cumbrera por la trampa del entretecho.',field:'f-casa-hTecho'});
   rev(!(c.ancho>0)||c.retiroFrontal>0,{id:'antejardin',step:3,msg:'¿La casa está pegada a la línea de calle, sin antejardín?',hint:'Si hay antejardín, mide desde la línea de la reja hasta la fachada.',field:'f-casa-retiroFrontal'});
   need(P.recintos.length,{step:4,msg:'Agrega el primer recinto.',hint:'Agrégalos aquí o regístralos con «Medir en vivo».',addRoom:1});
   {const I=P.instal||{};if(P.recintos.length){need(I.agua,{step:3,msg:'¿De dónde viene el agua potable de la casa?',hint:'Red pública, APR, pozo propio o camión aljibe. Está en la tarjeta Instalaciones.',field:'instal'});need(I.alcant,{step:3,msg:'¿A dónde van las aguas servidas: alcantarillado o fosa séptica?',hint:'Si no hay alcantarillado, ubica después la fosa y el pozo en el terreno.',field:'instal'});need(I.empalme,{step:3,msg:'¿El empalme eléctrico es monofásico o trifásico?',hint:'Mira el medidor: si tiene tres fases (tres cables de llegada) es trifásico.',field:'instal'});
@@ -273,7 +278,8 @@ function siteSVG(o){const {s,ox,oy}=o,lo=P.lote,c=P.casa;const fs=o.fs||2.4;cons
   h+=rect(X(b.x0-3),Y(0),(b.w+6)*s,6*s,'street')+text(X(b.x0+b.w/2),Y(-3)+fs*0.4,(lo.calle?lo.calle:'Calle').toUpperCase(),fs*1.05,'text-anchor="middle" font-weight="700" letter-spacing="1"','tx tm');
   if(LP)h+=poly(LP.map(q=>[X(q[0]),Y(q[1])]),'lot');
   if(c.ancho>0&&c.largo>0){const a=+c.alero||0,hx=c.retiroIzq,hy=c.retiroFrontal;h+=rect(X(hx-a),Y(hy+c.largo+a),(c.ancho+2*a)*s,(c.largo+2*a)*s,'dash')+rect(X(hx),Y(hy+c.largo),c.ancho*s,c.largo*s,'foot');
-    h+=volSiteSVG(X,Y,s,hx,hy)+elemSiteSVG(X,Y,s,hx,hy);if(o.dims)h+=elemCotasSVG(X,Y,s,fs);
+    h+=volSiteSVG(X,Y,s,hx,hy)+elemSiteSVG(X,Y,s,hx,hy);if(o.dims)h+=elemCotasSVG(X,Y,s,fs);h+=anotSVG(X,Y,s,fs);
+    if(c.techo==='cuatro-aguas'){const sp=Math.min(c.ancho,c.largo)/2,r1=c.ancho>=c.largo?[hx+sp,hy+c.largo/2]:[hx+c.ancho/2,hy+sp],r2_=c.ancho>=c.largo?[hx+c.ancho-sp,hy+c.largo/2]:[hx+c.ancho/2,hy+c.largo-sp];h+=line(X(r1[0]),Y(r1[1]),X(r2_[0]),Y(r2_[1]),'dash');for(const [cx,cy,rp] of [[hx,hy,r1],[hx,hy+c.largo,r1],[hx+c.ancho,hy,r2_],[hx+c.ancho,hy+c.largo,r2_]])h+=line(X(cx),Y(cy),X(rp[0]),Y(rp[1]),'dash')}
     if(c.techo==='dos-aguas'){h+=c.cumbrera==='paralela'?line(X(hx-a),Y(hy+c.largo/2),X(hx+c.ancho+a),Y(hy+c.largo/2),'dash'):line(X(hx+c.ancho/2),Y(hy-a),X(hx+c.ancho/2),Y(hy+c.largo+a),'dash')}
     h+=text(X(hx+c.ancho/2),Y(hy+c.largo/2)+fs*0.4,'CASA',fs*1.1,'text-anchor="middle" font-weight="700"')+text(X(hx+c.ancho/2),Y(hy+c.largo/2)+fs*1.7,fmt(c.ancho)+' × '+fmt(c.largo),fs*0.8,'text-anchor="middle"','tx tm mono');
     if(o.dims&&hy>0.5)h+=dimV(Y(0),Y(hy),X(hx+c.ancho*0.25),fmt(hy),fs*0.8);
@@ -289,7 +295,7 @@ function siteSVG(o){const {s,ox,oy}=o,lo=P.lote,c=P.casa;const fs=o.fs||2.4;cons
 function elevSVG(G,side,o){const c=P.casa,W=c.ancho,L=c.largo,H=c.altura,a=+c.alero||0,s=o.s,fs=o.fs||2.4;
   const E={frontal:{al:'x',u:x=>x,near:-a,ax:'h',wc:0,len:W},posterior:{al:'x',u:x=>W-x,near:L+a,ax:'h',wc:L,len:W},izquierda:{al:'y',u:y=>L-y,near:-a,ax:'v',wc:0,len:L},derecha:{al:'y',u:y=>y,near:W+a,ax:'v',wc:W,len:L}}[side];
   const rz=(al,d)=>E.al==='x'?roofZ(al,d):roofZ(d,al);
-  const bps=E.al==='x'?[-a,0,W/2,W,W+a]:[-a,0,L/2,L,L+a],dps=E.al==='x'?[-a,0,L/2,L,L+a]:[-a,0,W/2,W,W+a];
+  const bps=roofBps(E.al),dps=roofBps(E.al==='x'?'y':'x');
   const U=al=>o.ox+E.u(al)*s,Z=z=>o.oy-z*s;let h='';
   const inner=bps.filter(b=>b>=-EPS&&b<=E.len+EPS);
   const top=bps.map(al=>[U(al),Z(Math.max(...dps.map(d=>rz(al,d))))]);const eave=bps.slice().reverse().map(al=>[U(al),Z(rz(al,E.near))]);
@@ -310,7 +316,7 @@ function elevSVG(G,side,o){const c=P.casa,W=c.ancho,L=c.largo,H=c.altura,a=+c.al
 
 function sectSVG(G,which,o){const c=P.casa,W=c.ancho,L=c.largo,H=c.altura,a=+c.alero||0,s=o.s,fs=o.fs||2.4;const isA=which==='A';
   const depth=isA?P.cortes.a*L:P.cortes.b*W,len=isA?W:L,cutAx=isA?'v':'h';
-  const rz=al=>isA?roofZ(al,depth):roofZ(depth,al);const bps=isA?[-a,0,W/2,W,W+a]:[-a,0,L/2,L,L+a];
+  const rz=al=>isA?roofZ(al,depth):roofZ(depth,al);const bps=roofBps(isA?'x':'y');
   const U=al=>o.ox+al*s,Z=z=>o.oy-z*s;let h='';
   h+=rect(U(-0.3),Z(0),(len+0.6)*s,0.15*s,'slab');
   h+=line(U(-a-1),Z(-0.15),U(len+a+1),Z(-0.15),'gnd');
@@ -487,7 +493,7 @@ function drawSite(){const svg=$('#sitePrev');if(!svg)return;const lo=P.lote;cons
 function rCasa(){const c=P.casa;return hstep(3,'Casa','Volumen, ubicación en el terreno y techumbre. Compara la elevación con tu foto de fachada.')+`<p class="note">¿Dudas con fachada, cumbrera, alero o retiro? ${queEs('fachada')}</p>`+asstHTML(3)+
   `<div class="card"><div class="row sb"><h3>Volumen</h3><button class="btn sm" data-act="vivo">Medir en vivo</button></div><div class="g2">${nf('Frente de la casa','casa.ancho','m','Fachada principal, por fuera.')}${nf('Fondo de la casa','casa.largo','m','Fachada lateral, por fuera.')}${nf('Altura piso a cielo','casa.altura')}${nf('Espesor muro exterior','casa.eExt')}${nf('Espesor tabique interior','casa.eInt')}</div></div>
   <div class="card"><h3>Ubicación en el terreno</h3><div class="g2">${nf('Antejardín','casa.retiroFrontal','m','De la línea de calle a la fachada.')}${nf('Distancia al deslinde izquierdo','casa.retiroIzq','m','Mirando desde la calle.')}</div></div>
-  <div class="card"><h3>Techumbre</h3><div class="seg">${[['dos-aguas','Dos aguas'],['un-agua','Un agua'],['plana','Plana']].map(([k,n])=>`<button class="btn" data-techo="${k}" aria-pressed="${c.techo===k}">${n}</button>`).join('')}</div>
+  <div class="card"><h3>Techumbre</h3><div class="seg">${[['dos-aguas','Dos aguas'],['cuatro-aguas','Cuatro aguas'],['un-agua','Un agua'],['plana','Plana']].map(([k,n])=>`<button class="btn" data-techo="${k}" aria-pressed="${c.techo===k}">${n}</button>`).join('')}</div>
    ${c.techo==='dos-aguas'?`<div class="seg">${[['paralela','Cumbrera paralela a la calle'],['perpendicular','Cumbrera perpendicular a la calle']].map(([k,n])=>`<button class="btn sm" data-cumbrera="${k}" aria-pressed="${c.cumbrera===k}">${n}</button>`).join('')}</div>`:''}
    ${c.techo==='un-agua'?'<p class="note">La parte alta del techo queda hacia la calle.</p>':''}
    <div class="g2">${c.techo!=='plana'?nf('Altura de cumbrera sobre el cielo','casa.hTecho'):''}${nf('Alero','casa.alero')}</div></div>
@@ -874,21 +880,23 @@ function build3D(){const S=V.scene;if(V.root){S.remove(V.root);V.root.traverse(o
   const roofG=new THREE.Group();root.add(roofG);V.roofG=roofG;
   const mRoof=mCat('cubierta',kRoof,{side:1}),mSoffit=mStd('paint','#ECE8E0',{rough:.85,side:1}),mFascia=mCat('molduras',M.molduras||'pintada',{side:1}),mGut=mStd('flat','#C3C7C9',{rough:.35,metal:.5});
   if(c.techo==='plana'){add(hb(-a,W+a,-a,L+a,H,H+0.25),[mFascia,mFascia,mRoof,mSoffit,mFascia,mFascia],{to:roofG})}
-  else{const rt=0.14,par=c.techo==='un-agua'||c.cumbrera==='paralela',ri=roofInfo(),f=Math.sqrt(1+ri.m*ri.m);const xs=[-a,W/2,W+a],ys=[-a,L/2,L+a];
+  else{const rt=0.14,par=c.techo==='un-agua'||c.cumbrera==='paralela',ri=roofInfo(),f=Math.sqrt(1+ri.m*ri.m);const xs=roofBps('x'),ys=roofBps('y');
     const P3=(x,y,dz)=>V.toW(x,y,roofZ(x,y)+dz);
     const mk=(p,u)=>{const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(p,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(u,2));g.computeVertexNormals();return g};
     const pt=[],ut=[],pb=[],ub=[];
-    for(let i=0;i<2;i++)for(let j=0;j<2;j++){const q=[[xs[i],ys[j]],[xs[i+1],ys[j]],[xs[i+1],ys[j+1]],[xs[i],ys[j+1]]];
-      for(const [x,y] of [q[0],q[1],q[2],q[0],q[2],q[3]]){const v=P3(x,y,rt);pt.push(v.x,v.y,v.z);if(par)ut.push(x,y*f);else ut.push(y,x*f);const b=P3(x,y,0);pb.push(b.x,b.y,b.z);ub.push(x,y)}}
+    const zq=p=>roofZ(p[0],p[1]);
+    for(let i=0;i<xs.length-1;i++)for(let j=0;j<ys.length-1;j++){const q=[[xs[i],ys[j]],[xs[i+1],ys[j]],[xs[i+1],ys[j+1]],[xs[i],ys[j+1]]];const zc=roofZ((q[0][0]+q[2][0])/2,(q[0][1]+q[2][1])/2),e02=Math.abs((zq(q[0])+zq(q[2]))/2-zc),e13=Math.abs((zq(q[1])+zq(q[3]))/2-zc);const tri=e13<e02-1e-6?[q[0],q[1],q[3],q[1],q[2],q[3]]:[q[0],q[1],q[2],q[0],q[2],q[3]];
+      for(const [x,y] of tri){const v=P3(x,y,rt);pt.push(v.x,v.y,v.z);if(par)ut.push(x,y*f);else ut.push(y,x*f);const b=P3(x,y,0);pb.push(b.x,b.y,b.z);ub.push(x,y)}}
     add(mk(pt,ut),mRoof,{to:roofG});add(mk(pb,ub),mSoffit,{to:roofG,cast:false});
     const per=[[-a,-a],[W/2,-a],[W+a,-a],[W+a,L/2],[W+a,L+a],[W/2,L+a],[-a,L+a],[-a,L/2],[-a,-a]];const fp=[],fu=[];let acc=0;
     for(let i=0;i<per.length-1;i++){const [x1,y1]=per[i],[x2,y2]=per[i+1];const ln=Math.hypot(x2-x1,y2-y1);if(ln<1e-3)continue;const A=P3(x1,y1,-0.05),B=P3(x2,y2,-0.05),A2=P3(x1,y1,rt+0.01),B2=P3(x2,y2,rt+0.01);
       fp.push(A.x,A.y,A.z,B.x,B.y,B.z,B2.x,B2.y,B2.z,A.x,A.y,A.z,B2.x,B2.y,B2.z,A2.x,A2.y,A2.z);fu.push(acc,0,acc+ln,0,acc+ln,.2,acc,0,acc+ln,.2,acc,.2);acc+=ln}
     add(mk(fp,fu),mFascia,{to:roofG});
+    if(c.techo==='cuatro-aguas'){const rc=mStd('flat',MatTex.shade(matColor('cubierta',kRoof,M),-.25),{rough:.7});const sp=Math.min(W,L)/2,z=roofZ(W/2,L/2)+rt;if(W>=L)add(hb(sp-0.05,W-sp+0.05,L/2-0.13,L/2+0.13,z-0.03,z+0.08),rc,{to:roofG});else add(hb(W/2-0.13,W/2+0.13,sp-0.05,L-sp+0.05,z-0.03,z+0.08),rc,{to:roofG})}
     if(c.techo==='dos-aguas'){const rc=mStd('flat',MatTex.shade(matColor('cubierta',kRoof,M),-.25),{rough:.7});
       if(par){const z=roofZ(0,L/2)+rt;add(hb(-a-0.02,W+a+0.02,L/2-0.13,L/2+0.13,z-0.03,z+0.08),rc,{to:roofG})}
       else{const z=roofZ(W/2,0)+rt;add(hb(W/2-0.13,W/2+0.13,-a-0.02,L+a+0.02,z-0.03,z+0.08),rc,{to:roofG})}}
-    const eaves=c.techo==='un-agua'?[['h',L+a]]:par?[['h',-a],['h',L+a]]:[['v',-a],['v',W+a]];
+    const eaves=c.techo==='un-agua'?[['h',L+a]]:c.techo==='cuatro-aguas'?[['h',-a],['h',L+a],['v',-a],['v',W+a]]:par?[['h',-a],['h',L+a]]:[['v',-a],['v',W+a]];
     for(const [ax,ev] of eaves){const o=(ev<0?-1:1)*0.07;
       if(ax==='h'){const z=roofZ(0,ev)-0.03;add(hb(-a,W+a,ev+o-0.06,ev+o+0.06,z-0.11,z+0.02),mGut,{to:roofG});for(const x of [-a+0.2,W+a-0.2])add(hb(x-0.04,x+0.04,ev+o-0.04,ev+o+0.04,-0.17,z-0.1),mGut,{to:roofG})}
       else{const z=roofZ(ev,0)-0.03;add(hb(ev+o-0.06,ev+o+0.06,-a,L+a,z-0.11,z+0.02),mGut,{to:roofG});for(const y of [-a+0.2,L+a-0.2])add(hb(ev+o-0.04,ev+o+0.04,y-0.04,y+0.04,-0.17,z-0.1),mGut,{to:roofG})}}}
