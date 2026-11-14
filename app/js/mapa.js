@@ -171,7 +171,7 @@ async function applyMap(){if(!MV.calles&&MV.geo.pts.length>=3)await callesBuscar
   persist();closeMap();render();toast((casaOk?'Medidas del terreno y de la casa cargadas desde el mapa':'Medidas del terreno cargadas desde el mapa')+(nd?`, más ${nd} elemento${nd>1?'s':''} dibujado${nd>1?'s':''}`:'')+(P.lote.calle&&P.lote.calleAuto?` · calle: ${P.lote.calle}`:'')+'.');if(UI.trasMapa){UI.trasMapa=null;vivoOpen().then(()=>{if(VV?.guia)vGuiaIr(1)})}}
 document.addEventListener('click',e=>{const b=e.target.closest('[data-mact],[data-mmode],[data-mfrente]');if(!b||!$('#mapov'))return;const d=b.dataset;
   if(d.mmode){MV.mode=d.mmode;drawMap();return}
-  if(d.mfrente!=null){MV.geo.frente=+d.mfrente;drawMap();return}
+  if(d.mfrente!=null){MV.geo.frente=+d.mfrente;MV.frenteManual=true;drawMap();return}
   switch(d.mact){
     case 'cerrar':closeMap();if(UI.trasMapa){UI.trasMapa=null;vivoOpen()}break;
     case 'buscar':{const q=$('#msearch').value.trim();if(q)mapSearch(q);break}

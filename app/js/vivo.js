@@ -304,5 +304,5 @@ function placeMarks(){const c=P.casa,W=c.ancho,L=c.largo;let ok=0;const rest=[];
     else if(m.lado==='izquierdo'){r=P.recintos.find(q=>valid(q)&&near(q.x,0)&&X>q.y&&X<q.y+q.largo);if(r)d=r.y+r.largo-X-a/2}
     else{r=P.recintos.find(q=>valid(q)&&near(q.x+q.ancho,W)&&X>q.y&&X<q.y+q.largo);if(r)d=X-a/2-r.y}
     if(!r){rest.push(m);continue}const len=muro==='frontal'||muro==='posterior'?r.ancho:r.largo;d=Math.max(0,Math.min(len-a,d));
-    P.vanos.push({id:uid(),recinto:r.id,muro,tipo:m.tipo,dist:rr2(d),ancho:a,alto:+m.alto||(m.tipo==='puerta'?2.0:1.1),antepecho:m.tipo==='ventana'?(m.antepecho!=null?+m.antepecho:1.0):0});ok++}
+    P.vanos.push({id:uid(),src:m.src,recinto:r.id,muro,tipo:m.tipo,dist:rr2(d),ancho:a,alto:+m.alto||(m.tipo==='puerta'?2.0:1.1),antepecho:m.tipo==='ventana'?(m.antepecho!=null?+m.antepecho:1.0):0});ok++}
   P.marcas=rest;persist();render();toast(ok?`${ok} ubicada${ok>1?'s':''} en sus recintos.${rest.length?` ${rest.length} sin recinto en ese muro.`:''} Revisa sus medidas.`:'Ninguna marca coincide con un recinto en ese muro. Revisa la posición de los recintos.')}

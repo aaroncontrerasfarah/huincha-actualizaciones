@@ -524,3 +524,43 @@ body.ar-on>header,body.ar-on>main,body.ar-on::before{visibility:hidden}
 .dgrp{margin-top:6px}.dgrp .lbl{display:block;margin-bottom:3px}
 .dlens{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}.dlens .lbl{width:100%}
 .dlens .inp.sm{width:auto;max-width:150px}.dlens .inp.sm input{width:60px}
+/* recorrido por estaciones */
+.estov{position:fixed;inset:0;z-index:60;background:var(--bg,#f6f7f5);overflow:auto}
+.estpan{max-width:640px;margin:0 auto;padding:14px 14px 40px;display:flex;flex-direction:column;gap:10px}
+.estmapa{width:100%;max-height:300px;background:#e8ede4;border-radius:12px}
+.em-calle{fill:#cfcfca}.em-lote{fill:#eef4ea;stroke:#6f8a5e;stroke-width:.15;stroke-dasharray:.6 .4}
+.em-casa{fill:#fff;stroke:#33383b;stroke-width:.25}.em-obj{stroke:#5b6168;stroke-width:.08;fill:#cfd6d9}.em-lin{stroke:#5b6168;stroke-width:.2}
+.em-mira{stroke:#d9480f;stroke-width:.3}.em-mk{fill:#d9480f}
+.em-est circle{fill:#fff;stroke:#6b7175;stroke-width:.2;cursor:pointer}.em-est text{font-size:1.1px;text-anchor:middle;font-weight:700;fill:#33383b;pointer-events:none}
+.em-est.foto circle{fill:#ffd66b}.em-est.marcada circle{fill:#5ccf8a}.em-est.on circle{stroke:#d9480f;stroke-width:.35}
+.em-gps{fill:#2b7bf3;stroke:#fff;stroke-width:.25}.em-gpsr{fill:rgba(43,123,243,.15)}
+.estcard h3{margin:2px 0}.estfotos{display:flex;gap:8px;overflow-x:auto;margin-top:8px}
+.estft{flex:none;width:120px;border:1px solid var(--line,#d6dbd9);border-radius:10px;background:#fff;padding:0;overflow:hidden;font:inherit;font-size:12px;cursor:pointer}
+.estft img{display:block;width:100%;height:80px;object-fit:cover}.estft span{display:block;padding:4px 6px}
+.estlist{display:flex;flex-direction:column;gap:6px}
+.estli{display:flex;align-items:center;gap:10px;text-align:left;padding:10px 12px;border:1.5px solid var(--line,#d6dbd9);border-radius:10px;background:#fff;font:inherit;color:inherit;cursor:pointer}
+.estli b{width:24px;height:24px;border-radius:50%;background:#eee;display:grid;place-items:center;font-size:12px;flex:none}
+.estli span{flex:1}.estli em{font-style:normal;font-size:12px;opacity:.7}
+.estli.foto b{background:#ffd66b}.estli.marcada b{background:#5ccf8a}.estli.on{border-color:#e0a800;background:#fff8e1}
+/* editor de foto */
+.efov{position:fixed;inset:0;z-index:70;background:#14171a;overflow:auto;color:#fff}
+.efpan{max-width:900px;margin:0 auto;padding:10px 10px 30px;display:flex;flex-direction:column;gap:8px}
+.efpan .lbl{color:#cfd3d6}
+.eftools{display:flex;flex-wrap:wrap;gap:6px}
+.efwrap{text-align:center;touch-action:none}
+.efimg{position:relative;display:inline-block;max-width:100%;line-height:0}
+.efimg img{display:block;max-width:100%;max-height:62vh;width:auto;height:auto;user-select:none;-webkit-user-select:none}
+.efsvg{position:absolute;inset:0;width:100%;height:100%;touch-action:none}
+.ef-f{fill:rgba(255,255,255,.08);stroke-width:3;vector-effect:non-scaling-stroke}
+.ef-f.lin{fill:none;stroke-width:5}.ef-f.sug{stroke-dasharray:8 5}.ef-f.on{fill:rgba(255,214,107,.18);stroke-width:4}
+.ef-f.sintipo{stroke:#ff4d4d!important}
+.ef-ref{stroke:#ffd43b;stroke-width:5;stroke-dasharray:10 6;vector-effect:non-scaling-stroke}
+.ef-reft{fill:#ffd43b;font-weight:700;text-anchor:middle;paint-order:stroke;stroke:#000;stroke-width:3px}
+.ef-lab{fill:#fff;font-weight:700;paint-order:stroke;stroke:rgba(0,0,0,.8);stroke-width:4px}.ef-lab.warn{fill:#ff8f8f}
+.ef-h{fill:#fff;stroke:#e0a800;stroke-width:3;vector-effect:non-scaling-stroke;cursor:grab}.ef-h.ref{stroke:#ffd43b}.ef-h.cur{fill:#e0a800}
+.ef-cur{fill:none;stroke:#e0a800;stroke-width:3;stroke-dasharray:6 4;vector-effect:non-scaling-stroke}
+.efside{background:#fff;color:#1b1e20;border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:8px}
+.efmeds{display:flex;flex-wrap:wrap;gap:6px}.efmeds .inp.sm input{width:64px}
+.picb.on{border-color:#e0a800;background:#fff8e1}
+.efm{display:flex;flex-direction:column;gap:3px;font-size:12px;min-width:96px}.efm .inp.sm{display:flex;align-items:center}
+.efov .btn:not(.pri):not(.danger){color:#1b1e20;background:#fff}.efside .btn.ghost{color:#1b1e20}

@@ -139,7 +139,7 @@ async function callesBuscar(quiet){const G=MV.geo;if(!G||G.pts.length<3){if(!qui
       for(const w of ways){const W=GeoLot.local(w.geometry.map(g=>[g.lat,g.lon]),ref);for(let k=0;k<W.length-1;k++){const p=W[k],q2=W[k+1],dx=q2[0]-p[0],dy=q2[1]-p[1],L2=dx*dx+dy*dy||1,t=Math.max(0,Math.min(1,((m[0]-p[0])*dx+(m[1]-p[1])*dy)/L2)),d=Math.hypot(m[0]-p[0]-dx*t,m[1]-p[1]-dy*t);
         let da=Math.abs(Math.atan2(dy,dx)-ang)%Math.PI;da=Math.min(da,Math.PI-da);if(d<28&&da<.45&&(!best||d<best.d))best={d,n:w.tags.name}}}
       if(best)out[i]=best.n}
-    if(!out[fi]&&MV.dir.calle)out[fi]=MV.dir.calle;MV.calles=out;drawMap();
+    MV.calles=out;const nf=frenteDesdeCalles(out,n);if(nf!=null&&!MV.frenteManual&&nf!==fi){G.frente=nf;if(!quiet)toast(`El frente del terreno es el lado de ${out[nf]}.`)}if(!out[G.frente]&&MV.dir.calle)out[G.frente]=MV.dir.calle;drawMap();
     if(!quiet){const k=Object.keys(out).length;toast(k?`Encontré ${k} calle${k>1?'s':''}: ${[...new Set(Object.values(out))].join(', ')}.`:'No encontré calles con nombre junto al terreno. Puedes dibujarlas con «Calle».')}}
   catch(e){if(!quiet)toast('No se pudieron buscar las calles. Revisa la conexión.')}}
 
@@ -180,3 +180,10 @@ function anotSVG(X,Y,s,fs){const lo=P.lote;let h='';
     const px=X(cx+nx*3),py=Y(cy+ny*3);let ang=Math.atan2(Y(B[1])-Y(A[1]),X(B[0])-X(A[0]))*180/Math.PI;if(ang>90)ang-=180;if(ang<-90)ang+=180;
     h+=`<text transform="translate(${r2(px)} ${r2(py)}) rotate(${r2(ang)})" font-size="${r2(fs*1.05)}" text-anchor="middle" font-weight="700" letter-spacing="1" class="tx tm">${esc(nm.toUpperCase())}</text>`}}
   return h}
+
+/* ---------- frente del terreno desde la calle y lados de la casa ---------- */
+/* índice del deslinde que da a la calle: si hay varios (esquina), el de la calle de la dirección */
+function frenteDesdeCalles(calles,n){const ks=Object.keys(calles||{}).map(Number).filter(i=>i>=0&&i<n);if(!ks.length)return null;if(ks.length===1)return ks[0];
+  const dc=(MV.dir?.calle||'').toLowerCase();const k=ks.find(i=>dc&&String(calles[i]).toLowerCase()===dc);return k!=null?k:ks[0]}
+/* lados de la casa en coordenadas de la casa (el frente es y = 0, mirando desde la calle) */
+function casaLados(){const W=+P.casa.ancho||0,L=+P.casa.largo||0;return[{k:'frontal',a:[0,0],b:[W,0],largo:W},{k:'derecho',a:[W,0],b:[W,L],largo:L},{k:'posterior',a:[W,L],b:[0,L],largo:W},{k:'izquierdo',a:[0,L],b:[0,0],largo:L}]}

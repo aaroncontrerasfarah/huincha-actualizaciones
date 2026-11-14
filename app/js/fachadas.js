@@ -233,7 +233,7 @@ function fProyOk(){const r=FP.res,i=FP.i,c=P.casa;const lado=VSIDE[i].k;
   persist();FP=null;fProyPinta();
   if(P.recintos.some(valid))placeMarks();else{render();toast(`${n} vano${n===1?'':'s'} registrado${n===1?'':'s'} en la ${FLADO[i].n.toLowerCase()}. Se ubicarán en los recintos cuando los agregues.`)}}
 document.addEventListener('click',e=>{const b=e.target.closest('[data-pfa],[data-fia]');if(!b)return;
-  if(b.dataset.fia){fProyAbrir(b.dataset.fia);return}const [a,x,y]=b.dataset.pfa.split(':');if(!FP)return;const r=FP.res;
+  if(b.dataset.fia){const k=b.dataset.fia,i=FKEY.indexOf(k),ref=P.fotos[k]?.[P.fotos[k].length-1];if(i>=0&&ref&&typeof efDesdeRef==='function'){efDesdeRef('fach:'+VOL_LADOS[i],ref);return}fProyAbrir(k);return}const [a,x,y]=b.dataset.pfa.split(':');if(!FP)return;const r=FP.res;
   if(r&&fAccion(a,x,y,r,FP.T,fProyPinta,()=>{}))return;
   if(a==='lado'&&r){FP.i=+x;r.lado=+x;const c=P.casa;r.W=(FP.i%2===0?+c.ancho:+c.largo)||r.W;fProyPinta();return}
   if(a==='cerrar'){FP=null;fProyPinta()}else if(a==='van'&&r){r.vanos[+x].on=!r.vanos[+x].on;fProyPinta()}else if(a==='set'&&r){FP.T[x]=y;if(x==='techo'){FP.T.tipo=y;fRelienzo(r,FP.T)}fProyPinta()}else if(a==='add'&&r){fAddVano(r,x);fProyPinta()}else if(a==='el'&&r){r.els[+x].on=!r.els[+x].on;fProyPinta()}else if(a==='adde'&&r){fAddEl(r,x);fProyPinta()}else if(a==='ok'&&r)fProyOk()});
