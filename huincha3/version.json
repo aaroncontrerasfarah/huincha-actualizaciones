@@ -1,8 +1,8 @@
 {
- "web": 29,
+ "web": 33,
  "nativo": "d4ddf86d46c2",
  "zip": "web.zip",
  "apk": "huincha3.apk",
- "fecha": "2026-11-14T20:42:07Z",
- "notas": "Recorrido por estaciones: la app te lleva lugar por lugar, pide una foto en cada estación y en ella marcas muros, aguas, puertas, ventanas, pisos y más, con material y medidas, que se dibujan en el croquis."
+ "fecha": "2026-11-16T18:08:07Z",
+ "notas": "Foto de fachada en pasos guiados (muro, techo, ventanas, puertas, otros) con elevación en vivo, avisos de coherencia, construcciones adosadas e IA solo a pedido."
 }

@@ -23,13 +23,17 @@ function volFoto(est,foto){const c=P.casa,W=+c.ancho||0,L=+c.largo||0,rr=v=>Math
     if(f.tipo==='agua'){if(lado){const tri=f.geo==='poli'&&f.pts.length===3;if(tri||aguas.length>=2){c.techo='dos-aguas';c.cumbrera=(lado==='frontal'||lado==='posterior')===tri?'perpendicular':'paralela'}else if(aguas.length===1&&!c.techo)c.techo='un-agua'}
       const h=med(f,'alto');if(h&&(escrito(f,'alto')||!(c.hTecho>0)))c.hTecho=h;if(f.mat&&MATS.cubierta?.opts[f.mat])P.mat.cubierta=f.mat;act++;continue}
     /* elementos del terreno */
-    const tipo=f.tipo==='piso'?'radier':f.tipo;const T=ELT[tipo];if(!T)continue;
+    const tipo=f.tipo==='piso'?'radier':f.tipo==='adosada'?'edificacion':f.tipo;const T=ELT[tipo];if(!T)continue;
     if(f.vinculo){const e=P.elementos.find(x=>x.id===f.vinculo);if(e){const h=med(f,'alto');if(h&&T.k!=='area')e.h=h;if(f.mat)e.mat=f.mat;e.est=false;act++;continue}}
     let o,u,n;if(lado){const M=fMarco(i,W,L);o=M.o;u=M.u;n=M.n}
     else if(est.tipo==='frente'||est.tipo==='fondo'){const oy=est.tipo==='frente'?-(+c.retiroFrontal||0):(+P.lote.fondo||L+10)-(+c.retiroFrontal||0);o=[-(+c.retiroIzq||0),oy];u=[1,0];n=[0,est.tipo==='frente'?1:-1]}
-    else{const e0=(P.elementos||[]).find(x=>x.id===est.ref);const cc=e0?elCenter(e0):[W/2,-2];const ww=e0?Math.max(+e0.w||2,2):ref||4;o=[cc[0]-ww/2,cc[1]];u=[1,0];n=[0,-1]}
+    else{const e0=(P.elementos||[]).find(x=>x.id===est.ref);const cc=e0?elCenter(e0):est.mira?[est.mira[0]-(+c.retiroIzq||0),est.mira[1]-(+c.retiroFrontal||0)]:[W/2,-2];const ww=e0?Math.max(+e0.w||2,2):ref||4;o=[cc[0]-(largoLado>0?ww/2:0),cc[1]];u=[1,0];n=[0,-1]}
     const sMin=rel(Math.min(...us))*largoLado,sMax=rel(Math.max(...us))*largoLado,sC=(sMin+sMax)/2;
     const fondo=med(f,'fondo')||T.l||1,off=T.k==='linea'||T.k==='punto'?(lado?.3:0):(lado?fondo/2:0);
+    if(f.tipo==='adosada'&&lado){/* construcción pegada a la casa: al costado si queda fuera del ancho del muro, delante si queda dentro */
+      const raw=u=>(u-u0)/((u1-u0)||1)*largoLado,a0=raw(Math.min(...us)),a1=raw(Math.max(...us)),aw=med(f,'ancho')||rr(a1-a0)||3,fd=med(f,'fondo')||3,ac=(a0+a1)/2;
+      let q,s0;if(ac>largoLado){s0=largoLado+aw/2;q=[o[0]+u[0]*s0-n[0]*fd/2,o[1]+u[1]*s0-n[1]*fd/2]}else if(ac<0){s0=-aw/2;q=[o[0]+u[0]*s0-n[0]*fd/2,o[1]+u[1]*s0-n[1]*fd/2]}else{q=[o[0]+u[0]*ac+n[0]*fd/2,o[1]+u[1]*ac+n[1]*fd/2]}
+      const e=elemNew('edificacion',q,u);e.w=aw;e.l=fd;const h=med(f,'alto');if(h)e.h=h;e.techo=e.techo||'una_agua';e.nombre='Construcción adosada';e.adosada=true;if(f.mat)e.mat=f.mat;e.src=src;e.est=!escrito(f,'ancho');P.elementos.push(e);nuevos++;continue}
     const p=[o[0]+u[0]*sC+n[0]*off,o[1]+u[1]*sC+n[1]*off];const e=elemNew(tipo,p,u);
     if(T.k==='linea'){const lg=med(f,'largo')||(sMax-sMin);e.a=[rr(o[0]+u[0]*sMin+n[0]*off),rr(o[1]+u[1]*sMin+n[1]*off)];e.b=[rr(e.a[0]+u[0]*lg),rr(e.a[1]+u[1]*lg)];const h=med(f,'alto');if(h)e.h=h}
     else if(T.k==='punto'){const a=med(f,'ancho');if(a)e.w=e.l=Math.min(a,4);const h=med(f,'alto');if(h)e.h=h}

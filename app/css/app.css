@@ -564,3 +564,12 @@ body.ar-on>header,body.ar-on>main,body.ar-on::before{visibility:hidden}
 .picb.on{border-color:#e0a800;background:#fff8e1}
 .efm{display:flex;flex-direction:column;gap:3px;font-size:12px;min-width:96px}.efm .inp.sm{display:flex;align-items:center}
 .efov .btn:not(.pri):not(.danger){color:#1b1e20;background:#fff}.efside .btn.ghost{color:#1b1e20}
+/* delinear guiado */
+.efpasos{display:flex;flex-wrap:wrap;gap:4px}.efpaso{border:1px solid var(--line,#d6dbd9);background:#fff;border-radius:999px;padding:4px 10px;font:inherit;font-size:12px;color:#1b1e20;cursor:pointer}
+.efpaso.on{background:#e0a800;border-color:#e0a800;font-weight:700}.efpaso.ok{background:#e4f6ea;border-color:#5ccf8a}
+.efelevw{background:#fff;border-radius:12px;padding:8px;color:#1b1e20}.efelev{display:block;width:100%;max-height:200px}
+.ee-suelo{stroke:#5b5246;stroke-width:.06}.ee-muro{fill:#f4f1ea;stroke:#1b1e20;stroke-width:.05}.ee-agua{fill:none;stroke:#c0392b;stroke-width:.07}
+.ee-vano{fill:#dbe9fb;stroke:#2b7bf3;stroke-width:.04}.ee-otro{fill:rgba(224,168,0,.15);stroke:#b08400;stroke-width:.04}
+.ee-t{font-size:.32px;text-anchor:middle;fill:#1b1e20;font-weight:700}.ee-t.v{text-anchor:end}
+.efcoh{margin:4px 0;padding-left:0;list-style:none;color:#a3360a;font-size:13px;display:flex;flex-direction:column;gap:2px}
+.efelevw .lbl{color:#5b6168}
