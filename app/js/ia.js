@@ -1,15 +1,29 @@
 /* Huincha — análisis de fotos con IA.
    - Vista previa dentro de Claude: capacidad "sample" de la página.
-   - App instalada: el servidor de Huincha (window.HUINCHA_IA_URL, ver servidor/huincha-ia.gs), que guarda la clave
-     del dueño de la app. El usuario no configura nada. En la fase de pruebas usa el nivel gratuito de Gemini.
+   - Huincha Pro: el servidor de Huincha (window.HUINCHA_SERVIDOR, carpeta servidor-huincha), que valida la licencia y guarda la clave
+     de Claude y aplica los límites diarios. Antes del primer envío se pide permiso y se quita el EXIF de la foto.
    - Opcional: clave propia de la API de Claude guardada en el equipo. */
 "use strict";
 const IA=(()=>{let ns;const KEY='huincha.iakey',MODEL='claude-sonnet-5-5';
   async function sampleNS(){if(ns!==undefined)return ns;ns=null;try{const s=await window.claude?.use?.('sample');if(s){const lim=await s.limits().catch(()=>null);if(lim&&lim.images)ns=s}}catch(e){ns=null}return ns}
   const key=()=>{try{return localStorage.getItem(KEY)||''}catch(e){return''}};
   function setKey(k){try{k?localStorage.setItem(KEY,k):localStorage.removeItem(KEY)}catch(e){}}
-  const srv=()=>String(window.HUINCHA_IA_URL||'').trim();
-  async function mode(){if(await sampleNS())return'claude';if(key())return'api';if(srv())return'servidor';return null}
+  /* La IA incluida es parte de Huincha Pro: la usa quien tiene una licencia activa (ver licencia.js). */
+  const srv=()=>String(window.HUINCHA_SERVIDOR||'').trim().replace(/\/+$/,'')+'/api/ia';
+  const pro=()=>typeof Lic!=='undefined'&&Lic.activa();
+  /* Antes del primer envío se pide permiso: la foto sale del teléfono hacia Anthropic (Claude). */
+  const okIA=()=>{try{return localStorage.getItem('huincha.iaok')==='1'}catch(e){return false}};
+  let pend=null,rechazo=false;
+  function consentir(){if(okIA())return Promise.resolve(true);if(rechazo)return Promise.resolve(false);if(pend)return pend;
+    return pend=new Promise(res=>{const d=document.createElement('div');d.className='iaconsent';d.setAttribute('role','dialog');d.setAttribute('aria-modal','true');
+      d.innerHTML=`<div class="iaconsent-in"><h3>¿Enviar la foto a la IA?</h3><p>Para reconocer lo que se ve, la foto se envía a Claude (Anthropic) a través del servidor de Huincha. Antes de enviarla, la app le quita la ubicación GPS y los datos de la cámara. No se envían tu nombre ni la dirección del proyecto.</p><p class="note">La IA es opcional: siempre puedes delinear a mano. <a href="privacidad.html" target="_blank" rel="noopener">Política de privacidad</a></p><div class="row"><button class="btn pri" data-iac="si">Sí, enviar</button><button class="btn ghost" data-iac="no">No, gracias</button></div></div>`;
+      d.addEventListener('click',ev=>{const b=ev.target.closest('[data-iac]');if(!b)return;const si=b.dataset.iac==='si';if(si)try{localStorage.setItem('huincha.iaok','1')}catch(e){}else rechazo=true;d.remove();pend=null;res(si)});
+      document.body.appendChild(d);d.querySelector('[data-iac="si"]').focus()})}
+  /* Re-dibuja la foto en un lienzo: elimina EXIF (GPS, cámara) y la limita a 1600 px para gastar menos. */
+  async function limpia(blob){try{const bm=await createImageBitmap(blob);const k=Math.min(1,1600/Math.max(bm.width,bm.height));
+      const cv=document.createElement('canvas');cv.width=Math.round(bm.width*k);cv.height=Math.round(bm.height*k);cv.getContext('2d').drawImage(bm,0,0,cv.width,cv.height);bm.close?.();
+      return await new Promise(r=>cv.toBlob(b=>r(b||blob),'image/jpeg',.85))}catch(e){return blob}}
+  async function mode(){if(await sampleNS())return'claude';if(key())return'api';if(pro())return'servidor';return null}
   const keys=cat=>Object.keys(MATS[cat].opts).join(', ');
   function prompt(ctx){return`Eres el asistente de una app chilena de levantamiento de viviendas. Analiza la foto adjunta.
 Contexto del levantamiento: ${ctx}
@@ -25,11 +39,14 @@ En "volumenes" incluye solo construcciones fuera del contorno rectangular de la 
 No inventes medidas. Si estimas una dimensión, dilo como estimación dentro de "detalle". Escribe en español de Chile.`}
   /* Envía la foto y la instrucción a la IA disponible y devuelve el objeto JSON de la respuesta */
   async function ask(blob,txt,max){const m=await mode();if(!m)throw Object.assign(new Error('Sin IA configurada'),{code:'sin-ia'});
+    if(m!=='claude'&&!(await consentir()))throw Object.assign(new Error('Envío cancelado'),{code:'cancelado'});
+    blob=await limpia(blob);
     if(m==='claude'){const s=await sampleNS();return await s.json(txt,{images:[blob],modelTier:'default'})}
     const b64=await Store.toB64(blob);let t;
-    if(m==='servidor'){let r;try{r=await fetch(srv(),{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({app:'huincha',prompt:txt,imagen:b64,mime:blob.type||'image/jpeg'})})}catch(e){throw Object.assign(new Error('Sin conexión'),{code:'red'})}
-      if(!r.ok)throw Object.assign(new Error('El servidor respondió '+r.status),{code:'api'});const j=await r.json();
-      if(j.error)throw Object.assign(new Error(j.error),{code:j.codigo===429?'cuota':'api'});t=String(j.texto||'')}
+    if(m==='servidor'){let r,j;try{r=await fetch(srv(),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({clave:Lic.clave(),dispositivo:dispositivoId(),prompt:txt,imagen:b64,mime:blob.type||'image/jpeg',v:+(window.HUINCHA_WEB||0)})})}catch(e){throw Object.assign(new Error('Sin conexión'),{code:'red'})}
+      try{j=await r.json()}catch(e){throw Object.assign(new Error('El servidor respondió '+r.status),{code:'api'})}
+      if(j.licencia)Lic.rechazo(j.licencia);
+      if(j.error)throw Object.assign(new Error(j.error),{code:j.codigo===429?'cuota':j.codigo===403?'pro':'api'});t=String(j.texto||'')}
     else{const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'content-type':'application/json','x-api-key':key(),'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
         body:JSON.stringify({model:MODEL,max_tokens:max,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:blob.type||'image/jpeg',data:b64}},{type:'text',text:txt}]}]})});
       if(!r.ok)throw Object.assign(new Error('La API respondió '+r.status),{code:r.status===401?'clave':r.status===429?'cuota':'api'});
@@ -91,7 +108,7 @@ function iaResultHTML(r){const M=P.mat;return`<div class="iares"><p><b>La IA ve:
   ${Object.keys(r.materiales).length?`<div class="fld"><span>Materiales sugeridos</span>${Object.entries(r.materiales).map(([k,v])=>`<div class="row sb"><span>${esc(MATS[k].lab)}: ${esc(mn(k,v))}</span>${M[k]===v?'<span class="lbl">Ya elegido</span>':`<button class="btn sm" data-iamat="${k}:${v}">Aplicar</button>`}</div>`).join('')}</div>`:''}
   ${r.preguntas.length?`<div class="fld"><span>Preguntas para completar</span><ul class="iaq">${r.preguntas.map(q=>`<li>${esc(q)}</li>`).join('')}</ul><small>Quedan anotadas en el asistente.</small></div>`:''}</div>`}
 function iaGuardarPreguntas(r,step){for(const q of r.preguntas){if((P.iaPreg||[]).some(x=>x.texto===q))continue;(P.iaPreg=P.iaPreg||[]).push({id:'ia-'+Math.random().toString(36).slice(2,8),texto:q,step:step??1})}persist()}
-function iaErrorMsg(e){return e?.code==='sin-ia'?'La IA todavía no está conectada en esta versión de la app.':e?.code==='cuota'?'La IA está ocupada o se alcanzó su límite por ahora. Espera un minuto y vuelve a intentar.':e?.code==='red'?'No hay conexión a internet para usar la IA.':e?.code==='clave'?'La clave de API no es válida. Revísala en el paso Proyecto.':'No se pudo analizar la foto. Revisa la conexión e inténtalo de nuevo.'}
+function iaErrorMsg(e){return e?.code==='cancelado'?'No se envió la foto. Puedes delinear a mano.':e?.code==='cuota'&&/límite diario/.test(e?.message||'')?e.message:e?.code==='sin-ia'?'El análisis con IA es parte de Huincha Pro. Actívala en el paso Proyecto; mientras, puedes delinear a mano.':e?.code==='pro'?(e.message||'Tu licencia Pro no está activa.'):e?.code==='cuota'?'La IA está ocupada o se alcanzó su límite por ahora. Espera un minuto y vuelve a intentar.':e?.code==='red'?'No hay conexión a internet para usar la IA.':e?.code==='clave'?'La clave de API no es válida. Revísala en el paso Proyecto.':'No se pudo analizar la foto. Revisa la conexión e inténtalo de nuevo.'}
 /* Acciones comunes de los resultados */
 document.addEventListener('click',e=>{const b=e.target.closest('[data-iamat],[data-iavol]');if(!b)return;const d=b.dataset;
   if(d.iamat){const i=d.iamat.indexOf(':');P.mat[d.iamat.slice(0,i)]=d.iamat.slice(i+1);persist();b.outerHTML='<span class="lbl">Aplicado</span>';toast('Material aplicado.');return}

@@ -73,15 +73,21 @@ function artLayout(r){const out=[];const A=r.art||{};const x0=r.x,y0=r.y,W=r.anc
   for(const k of ['tablero','timbre','llavePaso','aire'])for(let i=0;i<(+A[k]||0);i++)out.push({k,c:pt(per*(.15+i*.1)),el:1});
   return out}
 /* símbolos en planta (modo 'arq': artefactos y muebles; 'ins': todo, con instalaciones) */
-function artSVG(X,Y,s,modo,fs){let h='';const sw=Math.max(.15,s*.012);
-  for(const r of P.recintos.filter(valid))for(const it of artLayout(r)){const T=ARTF[it.k];if(it.el&&modo==='arq')continue;const [cx,cy]=[X(it.c[0]),Y(it.c[1])];
+function artSVG(X,Y,s,modo,fs,nivel){let h='';const sw=Math.max(.15,s*.012);
+  /* En la lámina de instalaciones, un recinto sin artefactos anotados muestra lo típico para su tipo, en gris («sugerido»). */
+  let nSug=0;
+  for(const r0 of P.recintos.filter(r=>valid(r)&&(nivel==null||nivelDe(r)===nivel))){const vacio=!Object.keys(r0.art||{}).length,sug=modo==='ins'&&vacio&&typeof artTipico==='function';const r=sug?Object.assign({},r0,{art:artTipico(r0)}):r0;if(sug&&artLayout(r).length)nSug++;
+    if(sug)h+='<g class="sug" opacity=".5">';
+    for(const it of artLayout(r)){const T=ARTF[it.k];if(it.el&&modo==='arq')continue;const [cx,cy]=[X(it.c[0]),Y(it.c[1])];
     if(it.el){const rr=Math.max(.9,s*.09);if(it.k==='luminaria')h+=`<g class="asym"><circle cx="${r2(cx)}" cy="${r2(cy)}" r="${r2(rr*1.2)}" style="fill:#fff;stroke:#1b1e20;stroke-width:${sw}"/><path d="M${r2(cx-rr*.85)},${r2(cy-rr*.85)}L${r2(cx+rr*.85)},${r2(cy+rr*.85)}M${r2(cx+rr*.85)},${r2(cy-rr*.85)}L${r2(cx-rr*.85)},${r2(cy+rr*.85)}" style="stroke:#1b1e20;stroke-width:${sw}"/></g>`;
       else h+=`<g class="asym"><circle cx="${r2(cx)}" cy="${r2(cy)}" r="${r2(rr)}" style="fill:${it.k==='enchufe16'?'#1b1e20':'#fff'};stroke:#1b1e20;stroke-width:${sw}"/><text x="${r2(cx)}" y="${r2(cy+rr*.42)}" font-size="${r2(rr*1.1)}" text-anchor="middle" class="tx" style="fill:${it.k==='enchufe16'?'#fff':'#1b1e20'}">${T.ab}</text></g>`;continue}
     const w=it.w*s,l=it.l*s,deg=-it.rot*180/Math.PI;
     h+=`<g transform="translate(${r2(cx)} ${r2(cy)}) rotate(${r2(deg)})"><rect x="${r2(-w/2)}" y="${r2(-l/2)}" width="${r2(w)}" height="${r2(l)}" rx="${it.k==='wc'||it.k==='lavamanos'||it.k==='tina'?r2(Math.min(w,l)*.3):0}" style="fill:#fff;stroke:#1b1e20;stroke-width:${sw}${artU(it.k)==='ml'?';stroke-dasharray:'+r2(s*.08)+' '+r2(s*.04):''}"/>${Math.min(w,l)>fs*1.2?`<text x="0" y="${r2(fs*.3)}" font-size="${r2(Math.min(fs*.75,l*.45))}" text-anchor="middle" class="tx">${T.ab}</text>`:''}</g>`}
+    if(sug)h+='</g>'}
+  artSVG.sugeridos=nSug;
   return h}
-function artLeyendaSVG(x,y,f){const usados=new Set();for(const r of P.recintos)for(const k of Object.keys(r.art||{}))usados.add(k);const L=[...usados].filter(k=>ARTF[k]);
-  return L.map((k,i)=>text(x+(i%4)*60,y+Math.floor(i/4)*f*1.9,`${ARTF[k].ab} · ${ARTF[k].n}`,f,'','tx')).join('')}
+function artLeyendaSVG(x,y,f){const usados=new Set();for(const r of P.recintos.filter(valid))for(const k of Object.keys(Object.keys(r.art||{}).length?r.art:artTipico(r)))usados.add(k);const L=[...usados].filter(k=>ARTF[k]);
+  return L.map((k,i)=>text(x+(i%4)*60,y+Math.floor(i/4)*f*1.9,`${ARTF[k].ab} · ${ARTF[k].n}`,f,'','tx')).join('')+(artSVG.sugeridos?text(x,y+Math.ceil(L.length/4)*f*1.9+f*.4,`En gris: lo típico para ${artSVG.sugeridos} recinto${artSVG.sugeridos>1?'s':''} sin artefactos anotados (sugerido, por confirmar en terreno).`,f,'','tx tm'):'')}
 
 /* ---------- instalaciones generales (paso Casa) ---------- */
 const INSTAL={

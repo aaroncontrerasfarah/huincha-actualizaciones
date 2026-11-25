@@ -96,19 +96,26 @@ function opAbs(v){const r=room(v.recinto);if(!valid(r))return null;const {x,y,an
 function corner(v){const r=room(v.recinto);if(!valid(r))return null;
   return{frontal:[r.x+r.ancho,r.y],posterior:[r.x,r.y+r.largo],izquierdo:[r.x,r.y+r.largo],derecho:[r.x+r.ancho,r.y]}[v.muro]}
 const lkey=(ax,c)=>ax+':'+Math.round(c*1000);
-function geom(){const c=P.casa,W=+c.ancho||0,L=+c.largo||0,H=+c.altura||2.4;const lines=new Map();
+/* Varios pisos: P.casa.pisos (1 a 3), P.casa.entrepiso (espesor de losa o envigado entre pisos) y r.nivel de cada recinto (0 = primer piso). */
+const nPisos=()=>Math.max(1,Math.min(3,Math.round(+P.casa.pisos||1))),entrepiso=()=>Math.max(.1,+P.casa.entrepiso||.3);
+const zPiso=n=>n*((+P.casa.altura||2.4)+entrepiso()),hCasa=()=>zPiso(nPisos()-1)+(+P.casa.altura||2.4),nivelDe=r=>Math.max(0,Math.min(nPisos()-1,Math.round(+r.nivel||0)));
+/* Pendiente del terreno: P.lote.pendiente (%) y P.lote.pendDir. dzTer(x,y) = desnivel del terreno natural (m) en coordenadas
+   de la casa, respecto del terreno junto al centro de la fachada principal. */
+const pendTer=()=>{const p=Math.max(0,Math.min(60,+P.lote.pendiente||0))/100,d=P.lote.pendDir||'sube-fondo';return{p,gx:d==='sube-der'?p:d==='sube-izq'?-p:0,gy:d==='sube-fondo'?p:d==='baja-fondo'?-p:0}};
+const dzTer=(x,y)=>{const g=pendTer();return g.gx*(x-(+P.casa.ancho||0)/2)+g.gy*y};
+function geom(nivel=0){const c=P.casa,W=+c.ancho||0,L=+c.largo||0,H=+c.altura||2.4;const lines=new Map();const enNivel=r=>nivelDe(r)===nivel;
   const add=(ax,cc,a,b)=>{if(b-a<EPS)return;const k=lkey(ax,cc);if(!lines.has(k))lines.set(k,{ax,c:cc,iv:[],ops:[]});lines.get(k).iv.push([a,b])};
   if(W>0&&L>0){add('h',0,0,W);add('h',L,0,W);add('v',0,0,L);add('v',W,0,L)}
-  for(const r of P.recintos){if(!valid(r))continue;add('h',r.y,r.x,r.x+r.ancho);add('h',r.y+r.largo,r.x,r.x+r.ancho);add('v',r.x,r.y,r.y+r.largo);add('v',r.x+r.ancho,r.y,r.y+r.largo)}
+  for(const r of P.recintos){if(!valid(r)||!enNivel(r))continue;add('h',r.y,r.x,r.x+r.ancho);add('h',r.y+r.largo,r.x,r.x+r.ancho);add('v',r.x,r.y,r.y+r.largo);add('v',r.x+r.ancho,r.y,r.y+r.largo)}
   for(const l of lines.values()){l.iv=union(l.iv);l.ext=W>0&&((l.ax==='h'&&(near(l.c,0)||near(l.c,L)))||(l.ax==='v'&&(near(l.c,0)||near(l.c,W))));l.t=l.ext?(+c.eExt||0.2):(+c.eInt||0.15)}
-  const ops=[];for(const v of P.vanos){const o=opAbs(v);if(!o||!o.valid)continue;const l=lines.get(lkey(o.ax,o.c));if(l)l.ops.push(o);ops.push(o)}
-  return{W,L,H,lines:[...lines.values()],ops}}
+  const ops=[];for(const v of P.vanos){const rv=room(v.recinto);if(rv&&!enNivel(rv))continue;const o=opAbs(v);if(!o||!o.valid)continue;const l=lines.get(lkey(o.ax,o.c));if(l)l.ops.push(o);ops.push(o)}
+  return{W,L,H,lines:[...lines.values()],ops,nivel}}
 const lineOf=(G,q)=>G.lines.find(l=>l.ax===q.ax&&near(l.c,q.c));
 function edgeMatch(q,r){if(q.ax==='h')return(near(q.c,r.y)||near(q.c,r.y+r.largo))&&q.s<r.x+r.ancho-EPS&&q.e>r.x+EPS;
   return(near(q.c,r.x)||near(q.c,r.x+r.ancho))&&q.s<r.y+r.largo-EPS&&q.e>r.y+EPS}
 /* quiebres del techo a lo largo de un eje (para elevaciones, cortes y 3D) */
 function roofBps(ax){const c=P.casa,W=+c.ancho||0,L=+c.largo||0,a=+c.alero||0,len=ax==='x'?W:L;const b=[-a,0,len/2,len,len+a];if(c.techo==='cuatro-aguas'){const sp=Math.min(W,L)/2;b.push(sp,len-sp)}return[...new Set(b.map(v=>Math.round(v*1000)/1000))].sort((p,q)=>p-q)}
-function roofZ(x,y){const c=P.casa,W=c.ancho,L=c.largo,H=c.altura,h=+c.hTecho||0;
+function roofZ(x,y){const c=P.casa,W=c.ancho,L=c.largo,H=hCasa(),h=+c.hTecho||0;
   if(c.techo==='plana'||!(W>0&&L>0))return H+0.2;
   if(c.techo==='un-agua')return H+h*(1-y/L);
   if(c.techo==='cuatro-aguas'){const sp=Math.min(W,L)/2;return H+h*Math.min(x,W-x,y,L-y)/sp}
@@ -143,16 +150,17 @@ function cubica(){const G=geom(),c=P.casa,W=G.W,L=G.L,H=G.H,M=P.mat;const R=P.re
   for(const [k,v] of Object.entries(fl))rows.push(['Piso: '+mn('piso',k).toLowerCase(),'m²',v]);
   const top=(x,y)=>c.techo==='plana'?H:Math.max(H,roofZ(x,y));let ext=0;
   for(const [len,f] of [[W,u=>top(u,0)],[W,u=>top(u,L)],[L,u=>top(0,u)],[L,u=>top(W,u)]]){const bp=[0,len/2,len];for(let i=0;i<2;i++)ext+=(bp[i+1]-bp[i])*(f(bp[i])+f(bp[i+1]))/2}
-  const opA=q=>(q.e-q.s)*(q.z1-q.z0);const opExt=G.ops.filter(q=>lineOf(G,q)?.ext).reduce((t,q)=>t+opA(q),0);
+  const GS=[G,...Array.from({length:nPisos()-1},(_,i)=>geom(i+1))],OPS=GS.flatMap(g=>g.ops.map(q=>Object.assign(q,{_ext:!!lineOf(g,q)?.ext})));
+  const opA=q=>(q.e-q.s)*(q.z1-q.z0);const opExt=OPS.filter(q=>q._ext).reduce((t,q)=>t+opA(q),0);
   const zOn=M.zocalo&&M.zocalo!=='ninguno',zA=zOn?Math.max(0,2*(W+L)*0.6-G.ops.filter(q=>lineOf(G,q)?.ext&&q.z0<0.6).reduce((t,q)=>t+(q.e-q.s)*(0.6-q.z0),0)):0;
   rows.push(['Fachada: '+mn('revExt',M.revExt).toLowerCase(),'m²',Math.max(0,ext-opExt-zA)]);if(zOn)rows.push(['Zócalo: '+mn('zocalo',M.zocalo).toLowerCase(),'m²',zA]);
-  const wi={};for(const r of R){const op=G.ops.filter(q=>edgeMatch(q,r)).reduce((t,q)=>t+opA(q),0);const k=wallOf(r)+(roomColor(r)?'|'+r.color:(MATS.muroInt.opts[wallOf(r)]?.useColor?'|'+M.colorInt:''));wi[k]=(wi[k]||0)+2*(r.ancho+r.largo)*H-op}
+  const wi={};for(const r of R){const op=GS[nivelDe(r)].ops.filter(q=>edgeMatch(q,r)).reduce((t,q)=>t+opA(q),0);const k=wallOf(r)+(roomColor(r)?'|'+r.color:(MATS.muroInt.opts[wallOf(r)]?.useColor?'|'+M.colorInt:''));wi[k]=(wi[k]||0)+2*(r.ancho+r.largo)*H-op}
   for(const [k,v] of Object.entries(wi)){const [kk,cc]=k.split('|');rows.push(['Muros interiores: '+mn('muroInt',kk).toLowerCase()+(cc?' '+colorName(COL_INT,cc).toLowerCase():''),'m²',Math.max(0,v)])}
   rows.push(['Cielo: '+mn('cielo',M.cielo).toLowerCase(),'m²',R.reduce((t,r)=>t+r.ancho*r.largo,0)]);
   const ri=roofInfo();rows.push(['Cubierta: '+mn('cubierta',M.cubierta).toLowerCase()+' (con aleros)','m²',ri.area]);
   rows.push(['Tapacán','ml',ri.fascia]);if(ri.eaves)rows.push(['Canaletas','ml',ri.eaves]);
-  const wins=G.ops.filter(q=>q.isWin||q.v.tipo==='puerta-ventana');rows.push(['Ventanas y puertas-ventana','un',wins.length]);rows.push(['Superficie vidriada','m²',wins.reduce((t,q)=>t+opA(q),0)]);
-  rows.push(['Puertas','un',G.ops.filter(q=>q.v.tipo==='puerta').length]);
+  const wins=OPS.filter(q=>q.isWin||q.v.tipo==='puerta-ventana');rows.push(['Ventanas y puertas-ventana','un',wins.length]);rows.push(['Superficie vidriada','m²',wins.reduce((t,q)=>t+opA(q),0)]);
+  rows.push(['Puertas','un',OPS.filter(q=>q.v.tipo==='puerta').length]);if(nPisos()>1)rows.push(['Entrepiso (losa o envigado)','m²',W*L*(nPisos()-1)]);
   rows.push(...techuCubica());rows.push(...artCubica());rows.push(...obrasCubica());rows.push(...fundCubica());
   rows.push(...volCubica());
   if(M.cierre&&M.cierre!=='ninguno'&&lotPoly())rows.push(['Cierre: '+mn('cierre',M.cierre).toLowerCase(),'ml',lotPer()-1.2]);
@@ -174,7 +182,7 @@ function specRows(){const c=P.casa,M=P.mat,ri=roofInfo();
     ['Cielo',`${mn('cielo',M.cielo)}, altura piso-cielo ${fmt(c.altura)} m`],
     ['Patio',mn('terreno',M.terreno)],
     ['Cierre',mn('cierre',M.cierre)],...volSpecRows()]}
-const maxZ=()=>P.casa.techo==='plana'?P.casa.altura+0.2:P.casa.altura+(+P.casa.hTecho||0);
+const maxZ=()=>P.casa.techo==='plana'?hCasa()+0.2:hCasa()+(+P.casa.hTecho||0);
 function ovl(a,b){const w=Math.min(a.x+a.ancho,b.x+b.ancho)-Math.max(a.x,b.x),h=Math.min(a.y+a.largo,b.y+b.largo)-Math.max(a.y,b.y);return w>0&&h>0?w*h:0}
 function freeSpot(r){const c=P.casa;const others=P.recintos.filter(o=>o!==r&&valid(o));
   for(let y=0;y<=c.largo-r.largo+EPS;y+=0.05)for(let x=0;x<=c.ancho-r.ancho+EPS;x+=0.05){const t={x:r2(x),y:r2(y),ancho:r.ancho,largo:r.largo};if(!others.some(o=>ovl(o,t)>0.0001))return t}
@@ -246,7 +254,7 @@ function dimV(y1,y2,x,lab,fs){if(Math.abs(y2-y1)<0.5)return'';const t=fs*0.45;co
 function northArrow(cx,cy,r,deg){return`<g transform="rotate(${-deg} ${r2(cx)} ${r2(cy)})"><circle class="ln" cx="${r2(cx)}" cy="${r2(cy)}" r="${r2(r)}"/><polygon class="na" points="${r2(cx)},${r2(cy-r*0.95)} ${r2(cx+r*0.32)},${r2(cy+r*0.55)} ${r2(cx)},${r2(cy+r*0.25)} ${r2(cx-r*0.32)},${r2(cy+r*0.55)}"/></g>`+text(cx,cy-r-1.4*r/6-1,'N',r*0.55,'text-anchor="middle" font-weight="700"')}
 
 function planSVG(G,o){const {s,ox,oy}=o,L=G.L;const X=x=>ox+x*s,Y=y=>oy+(L-y)*s;let h='';const fs=o.fs||2.4;
-  for(const r of P.recintos){if(!valid(r))continue;h+=rect(X(r.x),Y(r.y+r.largo),r.ancho*s,r.largo*s,'rf'+(o.sel===r.id?' sel':''),`data-room="${r.id}"`);
+  for(const r of P.recintos){if(!valid(r)||nivelDe(r)!==(G.nivel||0))continue;h+=rect(X(r.x),Y(r.y+r.largo),r.ancho*s,r.largo*s,'rf'+(o.sel===r.id?' sel':''),`data-room="${r.id}"`);
     if(o.sheet)h+=rect(X(r.x),Y(r.y+r.largo),r.ancho*s,r.largo*s,'flr',`style="fill:url(#fl-${floorOf(r)}${o.sfx||''})"`)}
   const WR=[];for(const l of G.lines){const t=l.t;for(const p of pieces(l.iv,l.ops.map(q=>[q.s,q.e]))){const a=p.a-(p.ea?t/2:0),b=p.b+(p.eb?t/2:0);
     WR.push(l.ax==='h'?[X(a),Y(l.c+t/2),(b-a)*s,t*s,l.ext]:[X(l.c-t/2),Y(b),t*s,(b-a)*s,l.ext])}}
@@ -262,7 +270,7 @@ function planSVG(G,o){const {s,ox,oy}=o,L=G.L;const X=x=>ox+x*s,Y=y=>oy+(L-y)*s;
     if(o.selVano===q.id){const A=PT(q.s,q.c-t/2-0.18),B=PT(q.e,q.c+t/2+0.18);h+=rect(Math.min(A[0],B[0]),Math.min(A[1],B[1]),Math.abs(B[0]-A[0]),Math.abs(B[1]-A[1]),'rsel')}}
   if(o.sel){const r=room(o.sel);if(valid(r))h+=rect(X(r.x),Y(r.y+r.largo),r.ancho*s,r.largo*s,'rsel','pointer-events="none"')}
   if(o.corner){h+=`<circle class="pt" cx="${r2(X(o.corner[0]))}" cy="${r2(Y(o.corner[1]))}" r="${r2(fs*0.45)}" pointer-events="none"/>`}
-  for(const r of P.recintos){if(!valid(r))continue;const cx=X(r.x+r.ancho/2),cy=Y(r.y+r.largo/2);const nm=r.nombre.toUpperCase();
+  for(const r of P.recintos){if(!valid(r)||nivelDe(r)!==(G.nivel||0))continue;const cx=X(r.x+r.ancho/2),cy=Y(r.y+r.largo/2);const nm=r.nombre.toUpperCase();
     const f=Math.min(fs,(r.ancho*s*0.86)/(Math.max(nm.length,4)*0.52),r.largo*s/3.4);
     const hl=o.sheet?' halo':'';h+=text(cx,cy-f*0.15,nm,f,'text-anchor="middle" font-weight="700" pointer-events="none"','tx'+hl)+text(cx,cy+f*1.05,fmt(r.ancho*r.largo)+' m²',f*0.82,'text-anchor="middle" pointer-events="none"','tx tm mono'+hl);
     if(o.sheet)h+=text(cx,cy+f*2.1,mn('piso',floorOf(r)).toUpperCase(),f*0.62,'text-anchor="middle" letter-spacing=".3"','tx tm'+hl)}
@@ -278,8 +286,9 @@ function planSVG(G,o){const {s,ox,oy}=o,L=G.L;const X=x=>ox+x*s,Y=y=>oy+(L-y)*s;
 function siteSVG(o){const {s,ox,oy}=o,lo=P.lote,c=P.casa;const fs=o.fs||2.4;const b=o.box||lotBox();const F=lo.frente||0,D=lo.fondo||0;const X=x=>ox+(x-b.x0)*s,Y=y=>oy-y*s;let h='';const LP=lotPoly();
   h+=rect(X(b.x0-3),Y(0),(b.w+6)*s,6*s,'street')+text(X(b.x0+b.w/2),Y(-3)+fs*0.4,(lo.calle?lo.calle:'Calle').toUpperCase(),fs*1.05,'text-anchor="middle" font-weight="700" letter-spacing="1"','tx tm');
   if(LP)h+=poly(LP.map(q=>[X(q[0]),Y(q[1])]),'lot');
+  if(typeof curvasSVG==='function'&&c.ancho>0)h+=curvasSVG(X,Y,s,fs,+c.retiroIzq||0,+c.retiroFrontal||0);
   if(c.ancho>0&&c.largo>0){const a=+c.alero||0,hx=c.retiroIzq,hy=c.retiroFrontal;h+=rect(X(hx-a),Y(hy+c.largo+a),(c.ancho+2*a)*s,(c.largo+2*a)*s,'dash')+rect(X(hx),Y(hy+c.largo),c.ancho*s,c.largo*s,'foot');
-    h+=volSiteSVG(X,Y,s,hx,hy)+elemSiteSVG(X,Y,s,hx,hy);if(o.dims)h+=elemCotasSVG(X,Y,s,fs);h+=anotSVG(X,Y,s,fs);
+    h+=volSiteSVG(X,Y,s,hx,hy)+elemSiteSVG(X,Y,s,hx,hy);if(o.dims){h+=elemCotasSVG(X,Y,s,fs);if(typeof volCotasSVG==='function')h+=volCotasSVG(X,Y,s,fs,hx,hy)}h+=anotSVG(X,Y,s,fs);
     if(c.techo==='cuatro-aguas'){const sp=Math.min(c.ancho,c.largo)/2,r1=c.ancho>=c.largo?[hx+sp,hy+c.largo/2]:[hx+c.ancho/2,hy+sp],r2_=c.ancho>=c.largo?[hx+c.ancho-sp,hy+c.largo/2]:[hx+c.ancho/2,hy+c.largo-sp];h+=line(X(r1[0]),Y(r1[1]),X(r2_[0]),Y(r2_[1]),'dash');for(const [cx,cy,rp] of [[hx,hy,r1],[hx,hy+c.largo,r1],[hx+c.ancho,hy,r2_],[hx+c.ancho,hy+c.largo,r2_]])h+=line(X(cx),Y(cy),X(rp[0]),Y(rp[1]),'dash')}
     if(c.techo==='dos-aguas'){h+=c.cumbrera==='paralela'?line(X(hx-a),Y(hy+c.largo/2),X(hx+c.ancho+a),Y(hy+c.largo/2),'dash'):line(X(hx+c.ancho/2),Y(hy-a),X(hx+c.ancho/2),Y(hy+c.largo+a),'dash')}
     h+=text(X(hx+c.ancho/2),Y(hy+c.largo/2)+fs*0.4,'CASA',fs*1.1,'text-anchor="middle" font-weight="700"')+text(X(hx+c.ancho/2),Y(hy+c.largo/2)+fs*1.7,fmt(c.ancho)+' × '+fmt(c.largo),fs*0.8,'text-anchor="middle"','tx tm mono');
@@ -305,14 +314,19 @@ function elevSVG(G,side,o){const c=P.casa,W=c.ancho,L=c.largo,H=c.altura,a=+c.al
   if(np>0){const pl=pilotesCasa();const xs=[...new Set((pl.length?pl:[[0,0],[W,0],[0,L],[W,L]]).map(p=>Math.round((E.al==='x'?p[0]:p[1])*100)/100))];for(const x of xs)h+=rect(U(x)-0.1*s,Z(0),0.2*s,np*s,'fac');h+=line(U(0),Z(0),U(E.len),Z(0),'bold')}
   if(P.mat.zocalo&&P.mat.zocalo!=='ninguno')h+=rect(U(0)<U(E.len)?U(0):U(E.len),Z(0.6),E.len*s,0.6*s,'zoc');
   h+=poly([...top,...eave],'roofE',o.pat?`style="fill:url(#rx${o.sfx||''})"`:'')+`<polyline class="bold" points="${ptsS(top)}"/>`;
-  for(const q of G.ops){if(q.ax!==E.ax||!near(q.c,E.wc))continue;const x1=Math.min(U(q.s),U(q.e)),x2=Math.max(U(q.s),U(q.e)),y1=Z(q.z1),y2=Z(q.z0);
+  for(let n=1;n<nPisos();n++)h+=line(U(0),Z(zPiso(n)),U(E.len),Z(zPiso(n)),'th');
+  for(const [Gx,zo] of [[G,0],...Array.from({length:nPisos()-1},(_,i)=>[geom(i+1),zPiso(i+1)])])for(const q of Gx.ops){if(q.ax!==E.ax||!near(q.c,E.wc))continue;const x1=Math.min(U(q.s),U(q.e)),x2=Math.max(U(q.s),U(q.e)),y1=Z(q.z1+zo),y2=Z(q.z0+zo);
     if(q.isWin){h+=rect(x1,y1,x2-x1,y2-y1,'glass');if(q.e-q.s>0.9)h+=line((x1+x2)/2,y1,(x1+x2)/2,y2,'ln');h+=line(x1-0.04*s,y2,x2+0.04*s,y2,'bold')}
-    else{h+=rect(x1,y1,x2-x1,y2-y1,q.v.tipo==='vano'?'fac':(q.v.tipo==='puerta-ventana'?'glass':'door'));if(q.v.tipo==='puerta')h+=`<circle class="na" cx="${r2(x2-0.12*s)}" cy="${r2(Z(1))}" r="${r2(0.035*s)}"/>`}}
+    else{h+=rect(x1,y1,x2-x1,y2-y1,q.v.tipo==='vano'?'fac':(q.v.tipo==='puerta-ventana'?'glass':'door'));if(q.v.tipo==='puerta')h+=`<circle class="na" cx="${r2(x2-0.12*s)}" cy="${r2(Z(1+zo))}" r="${r2(0.035*s)}"/>`}}
   h+=volElevSVG(side,U,Zg,s,true);const sp=elevSpan(side);
-  const gx1=o.ox+sp.lo*s-1*s,gx2=o.ox+sp.hi*s+1*s;h+=line(gx1,Zg(0),gx2,Zg(0),'gnd');
+  const gx1=o.ox+sp.lo*s-1*s,gx2=o.ox+sp.hi*s+1*s;
+  {const inv={frontal:u=>u,posterior:u=>W-u,izquierda:u=>L-u,derecha:u=>u}[side],dzU=u=>{const al=inv(u);return E.al==='x'?dzTer(al,E.wc):dzTer(E.wc,al)};
+    const u1=sp.lo-1,u2=sp.hi+1;if(pendTer().p>0){const za=dzU(0),zb=dzU(E.len);if(Math.min(za,zb)<-0.01)h+=poly([[U(inv(0)),Zg(0)],[U(inv(E.len)),Zg(0)],[U(inv(E.len)),Zg(Math.min(0,zb))],[U(inv(0)),Zg(Math.min(0,za))]],'zoc');
+      if(Math.max(za,zb)>0.01){h+=poly([[U(inv(0)),Zg(0)],[U(inv(E.len)),Zg(0)],[U(inv(E.len)),Zg(Math.max(0,zb))],[U(inv(0)),Zg(Math.max(0,za))]],'foot');h+=text((U(inv(0))+U(inv(E.len)))/2,Zg(0)-fs*.35,'TERRENO A EXCAVAR O MURO DE CONTENCIÓN',fs*.55,'text-anchor="middle"','tx tm')}}
+    h+=line(gx1,Zg(dzU(u1)),gx2,Zg(dzU(u2)),'gnd')}
   const mz=Math.max(...top.map(p=>(o.oy-p[1])/s))-np;const lx=gx2+0.3*s;
   if(np>0)h+=text(lx+fs*0.6,Zg(0)-fs*0.25,'NTN −'+fmt(np),fs*0.75,'','tx mono');
-  for(const [z,lab] of [[0,'±0,00'],[H,'+'+fmt(H)],...(mz-H>0.05?[[mz,'+'+fmt(mz)]]:[])]){const y=Z(z);h+=line(lx-fs*0.3,y,lx+fs*2.6,y,'th')+`<polygon class="na" points="${ptsS([[lx,y],[lx-fs*0.35,y-fs*0.6],[lx+fs*0.35,y-fs*0.6]])}"/>`+text(lx+fs*0.6,y-fs*0.25,lab,fs*0.75,'','tx mono')}
+  const HT=hCasa();for(const [z,lab] of [[0,'±0,00'],...Array.from({length:nPisos()-1},(_,i)=>[zPiso(i+1),'+'+fmt(zPiso(i+1))]),[HT,'+'+fmt(HT)],...(mz-HT>0.05?[[mz,'+'+fmt(mz)]]:[])]){const y=Z(z);h+=line(lx-fs*0.3,y,lx+fs*2.6,y,'th')+`<polygon class="na" points="${ptsS([[lx,y],[lx-fs*0.35,y-fs*0.6],[lx+fs*0.35,y-fs*0.6]])}"/>`+text(lx+fs*0.6,y-fs*0.25,lab,fs*0.75,'','tx mono')}
   if(o.title)h+=text((U(0)+U(E.len))/2,o.oy+fs*2.4,o.title,fs*1.05,'text-anchor="middle" font-weight="700" letter-spacing=".4"');
   if(o.note)h+=text((U(0)+U(E.len))/2,o.oy+fs*3.9,o.note,fs*0.78,'text-anchor="middle"','tx tm');
   return h}
@@ -322,21 +336,26 @@ function sectSVG(G,which,o){const c=P.casa,W=c.ancho,L=c.largo,H=c.altura,a=+c.a
   const rz=al=>isA?roofZ(al,depth):roofZ(depth,al);const bps=roofBps(isA?'x':'y');
   const U=al=>o.ox+al*s,Z=z=>o.oy-z*s;let h='';
   h+=rect(U(-0.3),Z(0),(len+0.6)*s,0.15*s,'slab');
-  h+=line(U(-a-1),Z(-0.15),U(len+a+1),Z(-0.15),'gnd');
-  h+=line(U(0),Z(H),U(len),Z(H),'ln');
+  {const dzA=al=>isA?dzTer(al,depth):dzTer(depth,al);h+=line(U(-a-1),Z(-0.15+dzA(-a-1)),U(len+a+1),Z(-0.15+dzA(len+a+1)),'gnd')}
+  const NP=nPisos();for(let n=0;n<NP;n++)h+=line(U(0),Z(zPiso(n)+H),U(len),Z(zPiso(n)+H),'ln');for(let n=1;n<NP;n++)h+=rect(U(0),Z(zPiso(n)),len*s,entrepiso()*s,'slab');
   const rt=0.16;h+=poly([...bps.map(al=>[U(al),Z(rz(al)+rt)]),...bps.slice().reverse().map(al=>[U(al),Z(rz(al))])],'cut');
-  for(const l of G.lines){if(l.ax!==cutAx)continue;if(!l.iv.some(([p,q])=>p<depth-EPS&&q>depth+EPS))continue;const t=l.t;const topZ=l.ext?rz(l.c):H;
+  for(let n=0;n<NP;n++){const Gx=n?geom(n):G,zo=zPiso(n);for(const l of Gx.lines){if(l.ax!==cutAx)continue;if(!l.iv.some(([p,q])=>p<depth-EPS&&q>depth+EPS))continue;const t=l.t;const topZ=(l.ext?(n===NP-1?rz(l.c):zPiso(n+1)-entrepiso()):zo+H)-zo;
     const op=l.ops.find(q=>q.s<depth&&q.e>depth);const x=U(l.c-t/2);
     const wc='cut '+(l.ext?'we':'wi');
-    if(!op)h+=rect(x,Z(topZ),t*s,topZ*s,wc);
-    else{if(op.z0>0.01)h+=rect(x,Z(op.z0),t*s,op.z0*s,wc);if(op.z1<topZ-0.01)h+=rect(x,Z(topZ),t*s,(topZ-op.z1)*s,wc);if(op.isWin)h+=rect(x+t*s*0.35,Z(op.z1),t*s*0.3,(op.z1-op.z0)*s,'glass')}}
-  for(const r of P.recintos){if(!valid(r))continue;const inR=isA?(r.y<depth&&r.y+r.largo>depth):(r.x<depth&&r.x+r.ancho>depth);if(!inR)continue;const u=isA?r.x+r.ancho/2:r.y+r.largo/2;const span=(isA?r.ancho:r.largo)*s;const nm=r.nombre.toUpperCase();const f=Math.min(fs*0.9,span*0.86/(nm.length*0.52));h+=text(U(u),Z(1.1),nm,f,'text-anchor="middle" font-weight="700"','tx tm')}
-  h+=dimV(Z(0),Z(H),U(-a)-fs*1.6,fmt(H),fs*0.8);const mz=Math.max(...bps.map(rz));if(mz-H>0.05)h+=dimV(Z(H),Z(mz),U(-a)-fs*1.6,fmt(mz-H),fs*0.8);
-  if(o.title)h+=text(U(len/2),o.oy+fs*2.6,o.title,fs*1.05,'text-anchor="middle" font-weight="700" letter-spacing=".4"');
+    if(!op)h+=rect(x,Z(zo+topZ),t*s,topZ*s,wc);
+    else{if(op.z0>0.01)h+=rect(x,Z(zo+op.z0),t*s,op.z0*s,wc);if(op.z1<topZ-0.01)h+=rect(x,Z(zo+topZ),t*s,(topZ-op.z1)*s,wc);if(op.isWin)h+=rect(x+t*s*0.35,Z(zo+op.z1),t*s*0.3,(op.z1-op.z0)*s,'glass')}}}
+  for(const r of P.recintos){if(!valid(r))continue;const zr=zPiso(nivelDe(r));const inR=isA?(r.y<depth&&r.y+r.largo>depth):(r.x<depth&&r.x+r.ancho>depth);if(!inR)continue;const u=isA?r.x+r.ancho/2:r.y+r.largo/2;const span=(isA?r.ancho:r.largo)*s;const nm=r.nombre.toUpperCase();const f=Math.min(fs*0.9,span*0.86/(nm.length*0.52));h+=text(U(u),Z(zr+1.1),nm,f,'text-anchor="middle" font-weight="700"','tx tm')}
+  h+=dimV(Z(0),Z(H),U(-a)-fs*1.6,fmt(H),fs*0.8);for(let n=1;n<NP;n++)h+=dimV(Z(zPiso(n)),Z(zPiso(n)+H),U(-a)-fs*1.6,fmt(H),fs*0.8);const HT=hCasa(),mz=Math.max(...bps.map(rz));if(mz-HT>0.05)h+=dimV(Z(HT),Z(mz),U(-a)-fs*1.6,fmt(mz-HT),fs*0.8);
+  if(typeof sectExtrasSVG==='function')h+=sectExtrasSVG(G,which,o,{U,Z,len,depth,rz,isA});
+  if(o.title)h+=text(U(len/2),o.oy+(o.tY||0)+fs*2.6,o.title,fs*1.05,'text-anchor="middle" font-weight="700" letter-spacing=".4"');
   return h}
 
 /* ============ láminas ============ */
-const SHEETS=[{k:'emp',t:'Emplazamiento'},{k:'pla',t:'Planta de arquitectura'},{k:'ele',t:'Elevaciones'},{k:'cor',t:'Cortes'},{k:'ins',t:'Instalaciones'},{k:'esp',t:'Especificaciones'}];
+const SHEETS_BASE=[{k:'emp',t:'Emplazamiento'},{k:'pla',t:'Planta de arquitectura'},{k:'cub',t:'Planta de cubierta'},{k:'ele',t:'Elevaciones'},{k:'cor',t:'Cortes'},{k:'ins',t:'Instalaciones'},{k:'esp',t:'Especificaciones'}];
+/* Láminas según el número de pisos: una planta por piso. SHEETS se actualiza en el lugar (otras partes guardan la referencia). */
+const SHEETS=[];function syncSheets(){const n=nPisos(),out=[];for(const b of SHEETS_BASE){if(b.k==='pla'&&n>1){for(let k=0;k<n;k++)out.push({k:'pla',t:k?`Planta ${k+1}º piso`:'Planta 1er piso',n:k})}else out.push(b)}
+  SHEETS.splice(0,SHEETS.length,...out);if(typeof UI!=='undefined'&&UI.sheet>=SHEETS.length)UI.sheet=0}
+syncSheets();
 const DENS=[20,25,50,75,100,125,150,200,250,300,400,500,750,1000,1500,2000];
 const pick=(wm,hm,aw,ah)=>DENS.find(d=>wm*1000/d<=aw&&hm*1000/d<=ah)||2000;
 const SHEET_CSS=`<style>.sheet .w{fill:#1b1e20}.sheet .wo{fill:none;stroke:#1b1e20;stroke-width:.5}.sheet .we{fill:url(#hx)}.sheet .wi{fill:url(#hi)}.sheet .rf,.sheet .hs{fill:none}.sheet .flr{stroke:none}.sheet .halo{paint-order:stroke;stroke:#fff;stroke-width:.9px;stroke-linejoin:round}.sheet .ln{fill:none;stroke:#1b1e20;stroke-width:.25}.sheet .th{fill:none;stroke:#1b1e20;stroke-width:.15}.sheet .bold{fill:none;stroke:#1b1e20;stroke-width:.55}.sheet .dash{fill:none;stroke:#1b1e20;stroke-width:.2;stroke-dasharray:1.5 1}.sheet .lot{fill:none;stroke:#1b1e20;stroke-width:.45;stroke-dasharray:6 1.2 1 1.2}.sheet .win{fill:#fff;stroke:#1b1e20;stroke-width:.18}.sheet .street{fill:#eceeed}.sheet .foot{fill:url(#hl);stroke:#1b1e20;stroke-width:.4}.sheet .fac{fill:#fff;stroke:#1b1e20;stroke-width:.35}.sheet .roofE{fill:#dcdfdd;stroke:#1b1e20;stroke-width:.35}.sheet .glass{fill:#e2ecef;stroke:#1b1e20;stroke-width:.18}.sheet .door{fill:#f2f0eb;stroke:#1b1e20;stroke-width:.18}.sheet .cut{fill:url(#hd);stroke:#1b1e20;stroke-width:.3}.sheet .cut.we{fill:url(#hx)}.sheet .cut.wi{fill:url(#hi)}.sheet .slab{fill:url(#hd);stroke:#1b1e20;stroke-width:.25}.sheet .gnd{stroke:#1b1e20;stroke-width:.7}.sheet .tx{fill:#1b1e20;font-family:Archivo,'Arial Narrow',Arial,sans-serif;font-stretch:85%}.sheet .tm{fill:#5d6763}.sheet .mono{font-family:'IBM Plex Mono',Menlo,Consolas,monospace;font-stretch:100%}.sheet .rsel,.sheet .pt{display:none}.sheet .cutl{fill:none;stroke:#1b1e20;stroke-width:.3;stroke-dasharray:5 1 1 1}.sheet .na{fill:#1b1e20}.sheet .tag{fill:#fff;stroke:#1b1e20;stroke-width:.3}.sheet .fr{fill:none;stroke:#1b1e20;stroke-width:.5}.sheet .cell{fill:none;stroke:#1b1e20;stroke-width:.25}.sheet .zoc{fill:#e5e8e6;stroke:#1b1e20;stroke-width:.25}.sheet .vol{fill:#fff;stroke:#1b1e20;stroke-width:.4}.sheet .vol.up{stroke-dasharray:3 1.5}.sheet .vin{fill:none;stroke:#8d9592;stroke-width:.15}.sheet .pil{fill:#1b1e20}.sheet .vbr{fill:#fff;stroke:#1b1e20;stroke-width:.25;stroke-dasharray:1.5 1}.sheet .vfac{fill:#fff;stroke:#1b1e20;stroke-width:.35}.sheet .vdeck{fill:url(#hd);stroke:#1b1e20;stroke-width:.25}.sheet .thead{fill:#e8ebe9;stroke:#1b1e20;stroke-width:.3}.sheet .key{stroke:#1b1e20;stroke-width:.3}</style>`;
@@ -375,6 +394,7 @@ function vineta(i,den){const m=P.meta;const y0=249,x0=10,x1=410;let h=rect(x0,y0
   const cells=[[10,249,160,16,'PROYECTO',m.nombre||'—',4.2],[170,249,130,16,'CONTENIDO',SHEETS[i].t,3.6],[300,249,50,16,'ESCALA',den?'1:'+den:'S/E',4.2],[350,249,60,16,'LÁMINA',`L-0${i+1} / 0${SHEETS.length}`,4.2],
     [10,265,160,12,'DIRECCIÓN',[m.direccion,m.comuna].filter(Boolean).join(', ')||'—',3],[170,265,130,12,'PROPIETARIO',m.propietario||'—',3],[300,265,50,12,'LEVANTÓ',m.autor||'—',3],[350,265,60,12,'FECHA',(m.fecha||'').split('-').reverse().join('-')||'—',3]];
   for(const [x,y,w,hh,k,v,f] of cells){h+=rect(x,y,w,hh,'cell')+text(x+2,y+3.2,k,1.9,'letter-spacing=".4"','tx tm')+text(x+2,y+hh-2.2,v.length>60?v.slice(0,58)+'…':v,f,'font-weight="600"')}
+  if(typeof Lic!=='undefined'&&!Lic.activa())h+=`<g class="borrador" opacity=".09" pointer-events="none"><text x="210" y="140" font-size="46" font-weight="800" text-anchor="middle" transform="rotate(-24 210 140)" letter-spacing="4">BORRADOR</text><text x="210" y="168" font-size="9" font-weight="700" text-anchor="middle" transform="rotate(-24 210 140)" letter-spacing="2">HUINCHA GRATIS · ACTIVA PRO PARA QUITAR ESTA MARCA</text></g>`;
   h+=text(12,284.6,'Levantamiento referencial generado con Huincha. Las medidas son las ingresadas en terreno. No válido para trámites municipales sin revisión y firma de un arquitecto.',2.1,'','tx tm');
   return h}
 /* Tabla con columnas de ancho fijo; recorta el texto que no cabe */
@@ -393,33 +413,40 @@ function espSVG(){let h='';const R=P.recintos.filter(valid);
   const ny=24+crh*(cb.length+1)+6;h+=text(217,ny,'Cantidades netas calculadas desde las medidas del levantamiento.',2.2,'','tx tm')+text(217,ny+3.4,'No incluyen pérdidas, traslapos ni rendimientos de material.',2.2,'','tx tm');
   h+=text(217,ny+12,'SIMBOLOGÍA',3,'font-weight="700" letter-spacing=".4"')+legendSVG(217,ny+18,2.5);
   return h}
-function sheetSVG(i){const G=geom();const c=P.casa,lo=P.lote,M=P.mat;let body='',den=100,s=0;const k=SHEETS[i].k;const fs=2.4,sfx='-'+i;
+function sheetSVG(i){syncSheets();const G=geom(SHEETS[i].n||0);const c=P.casa,lo=P.lote,M=P.mat;let body='',den=100,s=0;const k=SHEETS[i].k;const fs=2.4,sfx='-'+i;
   const ok=c.ancho>0&&c.largo>0;
   if(!ok&&k!=='emp')body=text(210,130,'Faltan las medidas de la casa para dibujar esta lámina.',5,'text-anchor="middle"','tx tm');
   else if(k==='emp'){const b=lotBox(1),F=b.w,D=b.y1;den=pick(F+8,D+12,285,224);s=1000/den;
     const ox=15+(285-F*s)/2,oy=15+224-(224-(D+9)*s)/2-6*s;body=siteSVG({s,ox,oy,fs,dims:true,box:b})+text(15,240,'EMPLAZAMIENTO  ·  ESC. 1:'+den,3.2,'font-weight="700" letter-spacing=".4"');
-    body+=northArrow(330,40,9,lo.norte||0);const tx=310,tw=95;let ty=70;const rows=[['Superficie terreno',fmt(lotArea())+' m²'],['Superficie construida (casa)',fmt(c.ancho*c.largo)+' m²'],...obrasSup(false)>0?[['Otras construcciones existentes',fmt(obrasSup(false))+' m²']]:[],...obrasSup(true)>0?[['Construcciones proyectadas',fmt(obrasSup(true))+' m²']]:[],['Ocupación de suelo',lotArea()>0?fmt(c.ancho*c.largo/lotArea()*100,1)+' %':'—'],...(P.volumenes||[]).length?[['Volúmenes especiales',fmt(volArea())+' m²']]:[],['Superficie útil (recintos)',fmt(P.recintos.filter(valid).reduce((a,r)=>a+r.ancho*r.largo,0))+' m²'],['Recintos',String(P.recintos.filter(valid).length)],['Pisos','1'],['Patio',mn('terreno',M.terreno)],['Cierre',mn('cierre',M.cierre)]];
+    body+=northArrow(330,40,9,lo.norte||0);const tx=310,tw=95;let ty=70;const rows=[['Superficie terreno',fmt(lotArea())+' m²'],['Superficie construida (casa)',fmt(c.ancho*c.largo*nPisos())+' m²'+(nPisos()>1?` (${nPisos()} pisos)`:'')],...obrasSup(false)>0?[['Otras construcciones existentes',fmt(obrasSup(false))+' m²']]:[],...obrasSup(true)>0?[['Construcciones proyectadas',fmt(obrasSup(true))+' m²']]:[],['Ocupación de suelo',lotArea()>0?fmt(c.ancho*c.largo/lotArea()*100,1)+' %':'—'],...(P.volumenes||[]).length?[['Volúmenes especiales',fmt(volArea())+' m²']]:[],['Superficie útil (recintos)',fmt(P.recintos.filter(valid).reduce((a,r)=>a+r.ancho*r.largo,0))+' m²'],['Recintos',String(P.recintos.filter(valid).length)],['Pisos',String(nPisos())],['Patio',mn('terreno',M.terreno)],...(pendTer().p>0?[['Pendiente del terreno',fmt(pendTer().p*100,0)+' %']]:[]),['Cierre',mn('cierre',M.cierre)]];
     body+=text(tx,ty-4,'CUADRO DE SUPERFICIES',3,'font-weight="700" letter-spacing=".4"');for(const [a,b] of rows){body+=rect(tx,ty,tw,8,'cell')+text(tx+2,ty+5.4,a,2.5)+text(tx+tw-2,ty+5.4,b,2.5,'text-anchor="end"','tx mono');ty+=8}}
+  else if(k==='cub'){const a=+c.alero||0;let x0=-a,x1=c.ancho+a,y0=-a,y1=c.largo+a;for(const g of (typeof vols==='function'?vols():[])){x0=Math.min(x0,g.x0);x1=Math.max(x1,g.x1);y0=Math.min(y0,g.y0);y1=Math.max(y1,g.y1)}
+    den=pick(x1-x0+6,y1-y0+7,280,212);s=1000/den;const ox=15+(280-(x1-x0)*s)/2-x0*s,oy=15+(212-(y1-y0)*s)/2-(c.largo-y1)*s;
+    body=cubiertaSVG({s,ox,oy,fs,sfx})+text(15,240,'PLANTA DE CUBIERTA  ·  ESC. 1:'+den,3.2,'font-weight="700" letter-spacing=".4"')+text(15,244.6,'i = pendiente del paño · BLL = bajada de agua lluvia · línea gruesa = cumbrera · segmentada = muros bajo el techo',2.2,'','tx tm')+northArrow(390,32,7,lo.norte||0);
+    const tx=300,tw=105;let ty=62;body+=text(tx,ty-4,'TECHUMBRE',3,'font-weight="700" letter-spacing=".4"');for(const [a2,b2] of cubiertaNotas()){body+=rect(tx,ty,tw,9,'cell')+text(tx+1.6,ty+3.4,a2,1.9,'','tx tm')+text(tx+1.6,ty+7.2,String(b2).slice(0,60),2.3,'font-weight="600"');ty+=9}}
+  else if(k==='pla'&&vanosLista().length){const bb=houseVolBox();den=pick(bb.w+5,bb.h+5,280,212);s=1000/den;const ox=15+(280-bb.w*s)/2+0.6*s-bb.x0*s,oy=15+(212-bb.h*s)/2-(c.largo-bb.y1)*s-0.8*s;
+    body=planSVG(G,{s,ox,oy,fs:Math.min(3,Math.max(1.8,s*0.26)),dims:true,cuts:true,sheet:true,sfx})+text(15,240,(SHEETS[i].n!=null?'PLANTA '+(SHEETS[i].n?(SHEETS[i].n+1)+'º PISO':'1ER PISO'):'PLANTA DE ARQUITECTURA')+'  ·  ESC. 1:'+den,3.2,'font-weight="700" letter-spacing=".4"')+text(15,244.6,'Pisos dibujados según terminación · NPT ±0,00',2.2,'','tx tm')+legendSVG(255,238.6,2.2)+northArrow(390,32,7,lo.norte||0);body+=artSVG(x=>ox+x*s,y=>oy+(G.L-y)*s,s,'arq',Math.min(3,Math.max(1.8,s*0.26)),SHEETS[i].n||0);
+    body+=cuadroVanosSVG(300,52,105,2.1)}
   else if(k==='pla'){const bb=houseVolBox();den=pick(bb.w+5,bb.h+5,390,212);s=1000/den;const ox=15+(390-bb.w*s)/2+0.6*s-bb.x0*s,oy=15+(212-bb.h*s)/2-(c.largo-bb.y1)*s-0.8*s;
-    body=planSVG(G,{s,ox,oy,fs:Math.min(3,Math.max(1.8,s*0.26)),dims:true,cuts:true,sheet:true,sfx})+text(15,240,'PLANTA DE ARQUITECTURA  ·  ESC. 1:'+den,3.2,'font-weight="700" letter-spacing=".4"')+text(15,244.6,'Pisos dibujados según terminación · NPT ±0,00',2.2,'','tx tm')+legendSVG(255,238.6,2.2)+northArrow(390,32,7,lo.norte||0);body+=artSVG(x=>ox+x*s,y=>oy+(G.L-y)*s,s,'arq',Math.min(3,Math.max(1.8,s*0.26)))}
+    body=planSVG(G,{s,ox,oy,fs:Math.min(3,Math.max(1.8,s*0.26)),dims:true,cuts:true,sheet:true,sfx})+text(15,240,(SHEETS[i].n!=null?'PLANTA '+(SHEETS[i].n?(SHEETS[i].n+1)+'º PISO':'1ER PISO'):'PLANTA DE ARQUITECTURA')+'  ·  ESC. 1:'+den,3.2,'font-weight="700" letter-spacing=".4"')+text(15,244.6,'Pisos dibujados según terminación · NPT ±0,00',2.2,'','tx tm')+legendSVG(255,238.6,2.2)+northArrow(390,32,7,lo.norte||0);body+=artSVG(x=>ox+x*s,y=>oy+(G.L-y)*s,s,'arq',Math.min(3,Math.max(1.8,s*0.26)),SHEETS[i].n||0)}
   else if(k==='ins'){const bb=houseVolBox();den=pick(bb.w+5,bb.h+5,390,186);s=1000/den;const ox=15+(390-bb.w*s)/2+0.6*s-bb.x0*s,oy=15+(186-bb.h*s)/2-(c.largo-bb.y1)*s-0.8*s;const f2=Math.min(3,Math.max(1.8,s*0.26));
-    body=planSVG(G,{s,ox,oy,fs:f2,dims:false,cuts:false,sheet:true,sfx})+artSVG(x=>ox+x*s,y=>oy+(G.L-y)*s,s,'ins',f2)+text(15,210,'PLANTA DE INSTALACIONES Y ARTEFACTOS  ·  ESC. 1:'+den,3.2,'font-weight="700" letter-spacing=".4"')+text(15,214.6,'Ubicación referencial de puntos y artefactos dentro de cada recinto. E enchufe · F enchufe de fuerza · S interruptor · ⊗ luminaria',2.2,'','tx tm')+artLeyendaSVG(15,221,2.2);
+    body=planSVG(G,{s,ox,oy,fs:f2,dims:false,cuts:false,sheet:true,sfx})+artSVG(x=>ox+x*s,y=>oy+(G.L-y)*s,s,'ins',f2,0)+(typeof instRedesSVG==='function'?instRedesSVG(x=>ox+x*s,y=>oy+(G.L-y)*s,s,f2)+instRedesLeyenda(15,203,2):'')+text(15,210,'PLANTA DE INSTALACIONES Y ARTEFACTOS  ·  ESC. 1:'+den,3.2,'font-weight="700" letter-spacing=".4"')+text(15,214.6,'Ubicación referencial de puntos y artefactos dentro de cada recinto. E enchufe · F enchufe de fuerza · S interruptor · ⊗ luminaria',2.2,'','tx tm')+artLeyendaSVG(15,221,2.2);
     const sp=instalSpec();sp.forEach(([a,b2],i)=>{body+=text(262,221+i*3,(a+': '+b2).slice(0,95),2,'','tx')})}
   else if(k==='ele'){const SP={};for(const sd of ['frontal','posterior','izquierda','derecha'])SP[sd]=elevSpan(sd);den=Math.max(...Object.values(SP).map(q=>pick(q.hi-q.lo+4,q.zt+3.4,195,108)));s=1000/den;
     const note=`Fachada: ${mn('revExt',M.revExt).toLowerCase()}${usesColor('revExt')?' '+colorName(COL_EXT,M.colorExt).toLowerCase():''} · Cubierta: ${mn('cubierta',M.cubierta).toLowerCase()} · Ventanas: ${mn('ventanas',M.ventanas).toLowerCase()}`;
     const cells=[['frontal','ELEVACIÓN PRINCIPAL',15,15,c.ancho],['posterior','ELEVACIÓN POSTERIOR',210,15,c.ancho],['izquierda','ELEVACIÓN LATERAL IZQUIERDA',15,129.5,c.largo],['derecha','ELEVACIÓN LATERAL DERECHA',210,129.5,c.largo]];
     for(const [sd,t,x,y,len] of cells)body+=elevSVG(G,sd,{s,ox:x+(195-(SP[sd].hi-SP[sd].lo)*s)/2-SP[sd].lo*s-4,oy:y+114.5-15,fs:2.2,title:t+'  ·  ESC. 1:'+den,note,pat:true,sfx})}
-  else if(k==='cor'){const a=+c.alero||0;const mz=maxZ()+0.6;den=Math.max(pick(c.ancho+2*a+5,mz+2.4,390,108),pick(c.largo+2*a+5,mz+2.4,390,108));s=1000/den;
-    body=sectSVG(G,'A',{s,ox:15+(390-c.ancho*s)/2,oy:15+114.5-14,fs:2.2,title:"CORTE A-A'  ·  ESC. 1:"+den})+sectSVG(G,'B',{s,ox:15+(390-c.largo*s)/2,oy:129.5+114.5-14,fs:2.2,title:"CORTE B-B'  ·  ESC. 1:"+den})+legendSVG(255,242,2.2)}
+  else if(k==='cor'){const a=+c.alero||0;const mz=maxZ()+0.6;const fd=Math.max(.8,(typeof nivelPiso==='function'?nivelPiso():0)+.4);den=Math.max(pick(c.ancho+2*a+9,mz+2.4+fd,390,108),pick(c.largo+2*a+9,mz+2.4+fd,390,108));s=1000/den;
+    body=sectSVG(G,'A',{s,ox:15+(390-c.ancho*s)/2-6,oy:15+114.5-14-fd*s,fs:2.2,title:"CORTE A-A'  ·  ESC. 1:"+den,tY:fd*s})+sectSVG(G,'B',{s,ox:15+(390-c.largo*s)/2-6,oy:129.5+114.5-14-fd*s,fs:2.2,title:"CORTE B-B'  ·  ESC. 1:"+den,tY:fd*s})+legendSVG(255,242,2.2)}
   else{den=0;body=espSVG()}
   return `<svg class="sheet" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 297" width="420mm" height="297mm">${SHEET_CSS}${sheetDefs(s,sfx)}<rect width="420" height="297" fill="#ffffff"/>${rect(10,10,400,277,'fr')}${body}${vineta(i,den)}</svg>`}
 
 /* ============ cabecera y navegación ============ */
 function renderHeader(){const ch=CH();$('#pname').textContent=P.meta.nombre||'Proyecto sin nombre';$('#exb').hidden=!P.ejemplo;
-  const pct=Math.round(ch.pct*100);$('#tapef').style.width=pct+'%';$('#tapel').textContent=pct+'% levantado';
-  const pb=$('#pend');pb.textContent=ch.faltan?`${ch.faltan} pendiente${ch.faltan>1?'s':''}`:'Completo';pb.classList.toggle('zero',!ch.faltan);
+  const pct=Math.round(ch.pct*100);$('#tapef').style.width=pct+'%';$('#tapel').textContent=`${pct}% levantado · ${ch.faltan?`${ch.faltan} pendiente${ch.faltan>1?'s':''} ›`:'completo ✓'}`;
+  $('#tape').setAttribute('aria-label',`Avance del levantamiento: ${pct}%. ${ch.faltan?ch.faltan+' pendientes. Toca para verlos.':'Completo.'}`);
   $('#steps').innerHTML=STEPS.map((s,i)=>{const n=ch.items.filter(x=>x.step===i&&x.lvl==='falta').length;const cl=i>=S_REV?'none':(n?'':'ok');
-    return`<button class="st" type="button" data-step="${i}" ${UI.step===i?'aria-current="step"':''}><b>${i+1}</b>${s}<i class="${cl}" title="${n?n+' pendientes':'Completo'}"></i></button>`}).join('');
+    return`<button class="st" type="button" data-step="${i}" ${UI.step===i?'aria-current="step"':''} aria-label="Paso ${i+1}: ${s}${cl==='none'?'':n?', '+n+' pendientes':', completo'}"><b>${i+1}</b>${s}<i class="${cl}" aria-hidden="true">${cl==='none'?'':n?'!':'✓'}</i></button>`}).join('');
   const cur=$('#steps [aria-current]');if(cur&&cur.scrollIntoView&&!renderHeader.done){cur.scrollIntoView({inline:'center',block:'nearest'});renderHeader.done=1}}
 function goStep(i){UI.step=i;UI.asst=0;saveUI();renderHeader.done=0;render();window.scrollTo(0,0);const cur=$('#steps [aria-current]');cur?.scrollIntoView({inline:'center',block:'nearest'})}
 const hstep=(i,t,sub)=>`<div class="sh"><span class="sn">Paso ${i+1} de ${STEPS.length}</span><h2>${t}</h2>${sub?`<p>${sub}</p>`:''}</div>`;
@@ -433,7 +460,7 @@ const photoBtn=(target,lab='Tomar foto',cl='btn sm')=>`<label class="${cl}"><inp
 
 function asstHTML(step){const ch=LAST;const mine=ch.items.filter(i=>i.step===step);
   if(!mine.length){const nx=ch.items.findIndex(i=>i.lvl==='falta');
-    return`<section class="asst done" id="asst"><div class="asst-k"><span class="tag">Asistente</span><span>Paso completo</span></div><p class="asst-q">Este paso está listo.</p>${nx>=0?`<p class="asst-h">Lo siguiente que falta: ${esc(ch.items[nx].msg)}</p><div class="asst-a"><button class="btn pri" data-goitem="${nx}">Ir a ${esc(STEPS[ch.items[nx].step])}</button></div>`:`<p class="asst-h">El levantamiento tiene todo lo necesario. Ya puedes revisar los planos y el recorrido 3D.</p><div class="asst-a"><button class="btn pri" data-step="${S_PLA}">Ver planos</button><button class="btn" data-step="${S_3D}">Recorrido 3D</button></div>`}</section>`}
+    return`<section class="asst done" id="asst"><div class="asst-k"><span class="tag ok">✓ Paso completo</span></div>${nx>=0?`<div class="asst-a asst-sig"><span class="asst-h">Siguiente pendiente: ${esc(ch.items[nx].msg)}</span><button class="btn sm" data-goitem="${nx}">Ir a ${esc(STEPS[ch.items[nx].step])} →</button></div>`:`<p class="asst-h">El levantamiento tiene todo lo necesario. Ya puedes revisar los planos y el recorrido 3D.</p><div class="asst-a"><button class="btn pri" data-step="${S_PLA}">Ver planos</button><button class="btn" data-step="${S_3D}">Recorrido 3D</button></div>`}</section>`}
   const k=UI.asst%mine.length;const it=mine[k];const gi=ch.items.indexOf(it);
   return`<section class="asst" id="asst" aria-live="polite"><div class="asst-k"><span class="tag">Asistente</span><span>${mine.length>1?`Pregunta ${k+1} de ${mine.length} en este paso`:'Falta 1 dato en este paso'}</span></div><p class="asst-q">${esc(it.msg)}</p>${it.hint?`<p class="asst-h">${esc(it.hint)}</p>`:''}<div class="asst-a">${actionBtn(it,gi)}${it.lvl==='revisar'?`<button class="btn" data-okid="${it.id}">${esc(it.okLab||'Sí, es correcto')}</button>`:''}${mine.length>1?`<button class="btn ghost" data-asnext>Otra pregunta</button>`:''}</div></section>`}
 function actionBtn(it,gi){if(it.act)return`<button class="btn pri" data-act="${it.act}">${esc(it.actLab||'Hacer')}</button>`;if(it.photo)return photoBtn(it.photo,'Tomar foto','btn pri');
@@ -450,14 +477,15 @@ function rProyecto(){const G=geom(),c=P.casa,lo=P.lote;const R=P.recintos.filter
   return hstep(0,'Datos del proyecto','Estos datos van en la viñeta de cada lámina. El asistente te irá pidiendo lo que falte, paso a paso.')+
   (P.ejemplo?`<div class="card exban"><h3>Estás viendo una casa de ejemplo</h3><p>Sirve para mirar cómo quedan los planos y el recorrido 3D. Para levantar tu casa, crea un levantamiento nuevo: parte vacío y el asistente te guía.</p><div class="row"><button class="btn pri" data-act="nuevo">Comenzar mi levantamiento</button></div></div>`:'')+
   asstHTML(0)+
-  `<div class="card"><div class="row sb"><h3>Mis levantamientos</h3><div class="row"><button class="btn sm pri" data-act="nuevo">+ Nuevo</button><button class="btn sm" data-act="ejemplo">+ Ejemplo</button></div></div>${projectsHTML()}</div>
+  `<div class="card"><div class="row sb"><h3>Mis levantamientos</h3><div class="row"><button class="btn sm" data-act="ejemplo">+ Ejemplo</button></div></div>${projectsHTML()}</div>
   <div class="card"><div class="grid">${tf('Nombre del proyecto','meta.nombre','Casa …')}${tf('Dirección','meta.direccion','Calle y número')}${tf('Comuna','meta.comuna')}${tf('Propietario','meta.propietario')}${tf('Levantamiento realizado por','meta.autor','Tu nombre')}${tf('Fecha','meta.fecha','','date')}</div></div>
   <div class="card"><div class="row sb"><h3>Resumen del levantamiento</h3>${P.ejemplo?'<span class="badge">Datos de ejemplo</span>':''}</div>
    <div class="summ"><div><b>${fmt(lotArea(),0)} m²</b><span>Terreno</span></div><div><b>${fmt(c.ancho*c.largo,1)} m²</b><span>Construidos</span></div><div><b>${R.length}</b><span>Recintos</span></div><div><b>${G.ops.length}</b><span>Puertas y ventanas</span></div></div>
    <div class="edbox"><svg class="ed" id="sumPrev"></svg></div>
    <div class="row"><button class="btn pri" data-step="${S_PLA}">Ver planos</button><button class="btn" data-step="${S_3D}">Recorrido 3D</button></div></div>
-  <div class="card"><h3>Análisis de fotos con IA</h3><div id="iastat"><p class="note">Revisando…</p></div></div>
+  ${typeof Lic!=='undefined'?Lic.cardHTML():''}
   ${typeof Upd!=='undefined'?Upd.cardHTML():''}
+  <p class="note" style="text-align:center"><a href="privacidad.html" target="_blank" rel="noopener">Política de privacidad</a> · Mapas © Esri, Maxar y colaboradores de OpenStreetMap</p>
   <div class="card"><h3>Archivos de este levantamiento</h3>${storageHTML()}
    <div class="row"><button class="btn sm" data-act="exportjson">Exportar respaldo</button><label class="btn sm"><input type="file" accept=".json,.huincha,application/json" data-import hidden>Importar respaldo</label><button class="btn sm danger" data-act="delproj">Eliminar levantamiento</button></div>
    <p class="note">${Store.native?'Todo queda guardado dentro de la app en este teléfono, aunque no haya señal. ':'Estás usando la versión de prueba en el navegador: los datos quedan en este navegador. '}El respaldo incluye datos y fotos.</p></div>`+navHTML(0)}
@@ -483,10 +511,10 @@ function grabFrame(){const v=UI.videoEl;if(!v||!v.videoWidth)return Promise.reso
   try{cv.getContext('2d').drawImage(v,0,0,cv.width,cv.height)}catch(e){return Promise.resolve(null)}return new Promise(res=>{try{cv.toBlob(b=>res(b),'image/jpeg',0.82)}catch(e){res(null)}})}
 async function storePhoto(blob){return Store.putBlob(P.id,'foto-'+Date.now().toString(36)+uid()+'.jpg',blob)}
 
-function rTerreno(){const lo=P.lote,LP=lotPoly();return hstep(2,'Terreno','Medidas de los deslindes y orientación. Se dibuja el emplazamiento a medida que escribes.')+`<p class="note">¿No sabes qué son los deslindes o el norte? ${queEs('deslindes')}</p>`+asstHTML(2)+norteCardHTML()+estCardHTML()+
+function rTerreno(){const lo=P.lote,LP=lotPoly();return hstep(2,'Terreno','Medidas de los deslindes y orientación. Se dibuja el emplazamiento a medida que escribes.')+`<p class="note">¿No sabes qué son los deslindes o el norte? ${queEs('deslindes')}</p>`+asstHTML(2)+norteCardHTML()+(lo.geo?estCardHTML():'')+
   `<div class="card mapcard"><div class="row sb"><div><h3>Medir en el mapa</h3><p class="note">Marca las esquinas sobre la imagen satelital y la app calcula deslindes, superficie y norte.</p></div><button class="btn ${lo.fuente==='mapa'?'':'pri'}" data-act="mapa">${lo.geo?'Ajustar en el mapa':'Abrir mapa satelital'}</button></div>
-   ${lo.fuente==='mapa'&&LP?`<div class="msides">${LP.map((q,i)=>{const r=LP[(i+1)%LP.length];return`<span class="chip">Lado ${i+1}–${(i+1)%LP.length+1} · ${fmt(Math.hypot(r[0]-q[0],r[1]-q[1]),2)} m</span>`}).join('')}</div><p class="note">Terreno de ${LP.length} lados medido en el mapa · ${fmt(lotArea(),1)} m². Si escribes frente o fondo a mano, se usará un rectángulo.</p>`:''}</div>
-  <div class="card"><div class="g2">${nf('Frente (deslinde a la calle)','lote.frente')}${nf('Fondo (deslinde lateral)','lote.fondo')}</div>${tf('Nombre de la calle','lote.calle','Ej.: Camino Lonquén')}
+   ${lo.fuente==='mapa'&&LP?`<div class="msides">${LP.map((q,i)=>{const r=LP[(i+1)%LP.length];return`<span class="chip">Lado ${i+1}–${(i+1)%LP.length+1} · ${fmt(Math.hypot(r[0]-q[0],r[1]-q[1]),2)} m</span>`}).join('')}</div><p class="note">Terreno de ${LP.length} lados medido en el mapa · ${fmt(lotArea(),1)} m². Si escribes frente o fondo a mano, se usará un rectángulo.</p>`:''}</div>${lo.geo?'':estCardHTML()}
+  <div class="card"><div class="g2">${nf('Frente (deslinde a la calle)','lote.frente')}${nf('Fondo (deslinde lateral)','lote.fondo')}</div>${tf('Nombre de la calle','lote.calle','Ej.: Camino Lonquén')}<div class="g2">${nf('Pendiente del terreno','lote.pendiente','%','0 = plano. Mídela con el nivel del teléfono o estímala: 5 % = sube 1 m cada 20 m.','0')}<label class="fld"><span>Hacia dónde sube</span><div class="inp sel"><select id="f-lote-pendDir" data-bind="lote.pendDir">${[['sube-fondo','Sube hacia el fondo'],['baja-fondo','Baja hacia el fondo'],['sube-der','Sube hacia la derecha'],['sube-izq','Sube hacia la izquierda']].map(([k,t])=>`<option value="${k}"${(lo.pendDir||'sube-fondo')===k?' selected':''}>${t}</option>`).join('')}</select></div></label></div>
    <div class="g2">${`<label class="fld"><span>Norte (grados de brújula)</span><div class="inp"><input id="f-lote-norte" data-bind="lote.norte" data-num inputmode="decimal" value="${lo.norteOk||lo.norte?String(lo.norte).replace('.',','):''}" placeholder="0"><em>°</em></div><small>Mirando desde la calle hacia el fondo.</small></label>`}<div class="row" style="align-items:flex-end">${lo.norteOk?'<span class="lbl">Orientación confirmada.</span>':'<button class="btn" data-act="norte0">El fondo mira al norte (0°)</button>'}</div></div></div>
   <div class="edbox"><svg class="ed" id="sitePrev"></svg><div class="edcap"><span>Emplazamiento</span><span>Línea segmentada: deslindes</span></div></div>
   ${elemCardHTML()}${proyHTML()}`+navHTML(2)}
@@ -494,7 +522,7 @@ function drawSite(){const svg=$('#sitePrev');if(!svg)return;const lo=P.lote;cons
   const W=(F+12)*s,H=(D+14)*s;svg.setAttribute('viewBox',`0 0 ${W} ${H}`);svg.innerHTML=siteSVG({s,ox:6*s,oy:H-7*s,fs,dims:true,box:b})+northArrow(W-4.2*s,4.5*s,3*s*0.9,lo.norte||0)}
 
 function rCasa(){const c=P.casa;return hstep(3,'Casa','Volumen, ubicación en el terreno y techumbre. Compara la elevación con tu foto de fachada.')+`<p class="note">¿Dudas con fachada, cumbrera, alero o retiro? ${queEs('fachada')}</p>`+asstHTML(3)+
-  `<div class="card"><div class="row sb"><h3>Volumen</h3><button class="btn sm" data-act="vivo">Medir en vivo</button></div><div class="g2">${nf('Frente de la casa','casa.ancho','m','Fachada principal, por fuera.')}${nf('Fondo de la casa','casa.largo','m','Fachada lateral, por fuera.')}${nf('Altura piso a cielo','casa.altura')}${nf('Espesor muro exterior','casa.eExt')}${nf('Espesor tabique interior','casa.eInt')}</div></div>
+  `<div class="card"><div class="row sb"><h3>Volumen</h3><button class="btn sm" data-act="vivo">Medir en vivo</button></div><div class="g2">${nf('Frente de la casa','casa.ancho','m','Fachada principal, por fuera.')}${nf('Fondo de la casa','casa.largo','m','Fachada lateral, por fuera.')}${nf('Altura piso a cielo','casa.altura')}${nf('Número de pisos','casa.pisos','',' 1 a 3. Cada piso tiene sus recintos.','1')}${nPisos()>1?nf('Espesor del entrepiso','casa.entrepiso','m','Losa o envigado entre pisos.','0,30'):''}${nf('Espesor muro exterior','casa.eExt')}${nf('Espesor tabique interior','casa.eInt')}</div></div>
   <div class="card"><h3>Ubicación en el terreno</h3><div class="g2">${nf('Antejardín','casa.retiroFrontal','m','De la línea de calle a la fachada.')}${nf('Distancia al deslinde izquierdo','casa.retiroIzq','m','Mirando desde la calle.')}</div></div>
   <div class="card"><h3>Techumbre</h3><div class="seg">${[['dos-aguas','Dos aguas'],['cuatro-aguas','Cuatro aguas'],['un-agua','Un agua'],['plana','Plana']].map(([k,n])=>`<button class="btn" data-techo="${k}" aria-pressed="${c.techo===k}">${n}</button>`).join('')}</div>
    ${c.techo==='dos-aguas'?`<div class="seg">${[['paralela','Cumbrera paralela a la calle'],['perpendicular','Cumbrera perpendicular a la calle']].map(([k,n])=>`<button class="btn sm" data-cumbrera="${k}" aria-pressed="${c.cumbrera===k}">${n}</button>`).join('')}</div>`:''}
@@ -509,9 +537,10 @@ function drawCasa(){const svg=$('#casaPrev');if(!svg)return;const c=P.casa;if(!(
 /* Extensión de una elevación: la casa con sus aleros y los volúmenes especiales */
 function elevSpan(sd){const c=P.casa,a=+c.alero||0,len=sd==='frontal'||sd==='posterior'?c.ancho:c.largo,r=volElevRange(sd);return{lo:Math.min(-a,r.lo),hi:Math.max(len+a,r.hi),zt:Math.max(maxZ(),r.zt)}}
 
-function roomChips(sel){return`<div class="chips" id="rchips">${P.recintos.map(r=>{const okk=valid(r)&&r.fotos.length;return`<button class="chip" data-selroom="${r.id}" aria-pressed="${sel===r.id}"><span class="w ${okk?'ok':''}"></span>${esc(r.nombre)}</button>`}).join('')}</div>`}
+function roomChips(sel){return`<div class="chips" id="rchips">${P.recintos.filter(r=>nPisos()<2||nivelDe(r)===(UI.nivel||0)).map(r=>{const okk=valid(r)&&r.fotos.length;return`<button class="chip" data-selroom="${r.id}" aria-pressed="${sel===r.id}"><span class="w ${okk?'ok':''}"></span>${esc(r.nombre)}</button>`}).join('')}</div>`}
 function rRecintos(){if(!room(UI.room))UI.room=P.recintos[0]?.id||null;const r=room(UI.room);
   return hstep(4,'Recintos','Cada recinto con su ancho, largo y posición. Arrastra los recintos en el plano: se ajustan a los muros cercanos.')+asstHTML(4)+
+  (nPisos()>1?`<div class="chips" role="tablist" aria-label="Piso">${Array.from({length:nPisos()},(_,k)=>`<button class="chip" data-nivel="${k}" aria-pressed="${(UI.nivel||0)===k}">${k?(k+1)+'º piso':'1er piso'}</button>`).join('')}</div>`:'')+
   `<div class="edbox"><svg class="ed" id="ed"></svg><div class="edcap"><span>Abajo: fachada principal (calle)</span><span>Medidas a eje de muro</span></div></div>
   <div class="row sb"><h3>Recintos (${P.recintos.length})</h3><button class="btn pri sm" data-act="addroom">+ Agregar recinto</button></div>${roomChips(UI.room)}
   ${r?`<div class="card" id="rform"><input class="titlein" id="r-nombre" data-rb="nombre" value="${esc(r.nombre)}" aria-label="Nombre del recinto">
@@ -525,7 +554,7 @@ const EDS=10;
 function drawEditor(id='ed'){const svg=$('#'+id);if(!svg)return;const c=P.casa;if(!(c.ancho>0&&c.largo>0)){svg.setAttribute('viewBox','0 0 100 24');svg.innerHTML=text(50,13,'Primero ingresa el frente y fondo de la casa (paso 4).',3.4,'text-anchor="middle"','tx tm');return}
   const pad=12,s=EDS,bb=houseVolBox();svg.setAttribute('viewBox',`${bb.x0*s-pad} ${(c.largo-bb.y1)*s-pad} ${bb.w*s+2*pad} ${bb.h*s+2*pad}`);
   let corner=null;if(id==='vprev'&&UI.vano){const v=vano(UI.vano);if(v)corner=corner_(v)}
-  svg.innerHTML=rect(0,0,c.ancho*s,c.largo*s,'hs')+planSVG(geom(),{s,ox:0,oy:0,fs:3.6,sel:UI.room,selVano:id==='vprev'?UI.vano:null,corner})+text(c.ancho*s/2,(c.largo-bb.y0)*s+pad-2.5,'CALLE ↓',3,'text-anchor="middle" letter-spacing="1"','tx tm')}
+  svg.innerHTML=rect(0,0,c.ancho*s,c.largo*s,'hs')+planSVG(geom(UI.nivel||0),{s,ox:0,oy:0,fs:3.6,sel:UI.room,selVano:id==='vprev'?UI.vano:null,corner})+text(c.ancho*s/2,(c.largo-bb.y0)*s+pad-2.5,'CALLE ↓',3,'text-anchor="middle" letter-spacing="1"','tx tm')}
 const corner_=v=>corner(v);
 
 function rVanos(){if(!room(UI.room))UI.room=P.recintos.find(valid)?.id||null;const r=room(UI.room);const vs=P.vanos.filter(v=>v.recinto===UI.room);if(!vano(UI.vano)||vano(UI.vano).recinto!==UI.room)UI.vano=vs[0]?.id||null;const v=vano(UI.vano);
@@ -573,13 +602,14 @@ function rRevision(){const ch=LAST;const falt=ch.items.filter(i=>i.lvl==='falta'
   ${rev.length?`<h3>Para confirmar (${rev.length})</h3><div class="rv">${rev.map(item).join('')}</div>`:''}
   <div class="card"><h3>Cuadro de recintos</h3><div style="overflow-x:auto"><table class="t"><thead><tr><th>Recinto</th><th class="n">Medidas</th><th class="n">m²</th></tr></thead><tbody>${R.map(r=>`<tr><td>${esc(r.nombre)}</td><td class="n">${fmt(r.ancho)} × ${fmt(r.largo)}</td><td class="n">${fmt(r.ancho*r.largo)}</td></tr>`).join('')}</tbody><tfoot><tr><td>Total útil</td><td></td><td class="n">${fmt(tot)}</td></tr></tfoot></table></div></div>`+navHTML(S_REV)}
 
-function rPlanos(){const isCor=SHEETS[UI.sheet].k==='cor';
+function rPlanos(){syncSheets();const isCor=SHEETS[UI.sheet].k==='cor';
   return hstep(S_PLA,'Planos','Láminas A3 a escala, con viñeta. Se recalculan con cada dato que agregues.')+
   `<div class="tabs" role="tablist">${SHEETS.map((s,i)=>`<button class="btn" role="tab" data-sheet="${i}" aria-pressed="${UI.sheet===i}">L-0${i+1} ${s.t}</button>`).join('')}</div>
   <div class="row sb"><div class="row"><button class="btn sm" data-zoom="-1" aria-label="Alejar">−</button><span class="lbl mono" id="zl">${Math.round(UI.zoom*100)}%</span><button class="btn sm" data-zoom="1" aria-label="Acercar">+</button></div><span class="lbl">Desliza para recorrer la lámina</span></div>
   ${isCor?`<div class="card"><div class="g2"><label class="fld"><span>Corte A-A' (posición hacia el fondo)</span><input type="range" min="5" max="95" value="${Math.round(P.cortes.a*100)}" data-cut="a" id="cut-a"></label><label class="fld"><span>Corte B-B' (posición desde la izquierda)</span><input type="range" min="5" max="95" value="${Math.round(P.cortes.b*100)}" data-cut="b" id="cut-b"></label></div></div>`:''}
   <div class="sheetbox" id="sheet" style="--z:${UI.zoom}"></div>
-  <div class="card"><h3>Descargar</h3><div class="row"><button class="btn pri" data-act="dlsvg">Esta lámina (SVG)</button><button class="btn" data-act="dlhtml">Carpeta completa para imprimir</button><button class="btn" data-act="exportjson">Proyecto (.json)</button></div>
+  <div class="card"><h3>Exportar para trabajar</h3><p class="note">${typeof Lic!=='undefined'&&Lic.activa()?'Incluido en tu licencia Pro.':'Parte de Huincha Pro: actívala en el paso Proyecto.'}</p><div class="row"><button class="btn pri" data-exp="pdf">PDF A3 a escala (todas las láminas)</button><button class="btn" data-exp="dxf">DXF para AutoCAD</button><button class="btn" data-exp="xlsx">Cubicación en Excel</button></div></div>
+  <div class="card"><h3>Descargar</h3><div class="row"><button class="btn" data-act="dlsvg">Esta lámina (SVG)</button><button class="btn" data-act="dlhtml">Carpeta completa para imprimir</button><button class="btn" data-act="exportjson">Proyecto (.json)</button></div>
   <p class="note">La carpeta completa es un archivo HTML con las ${SHEETS.length} láminas en tamaño A3. Ábrelo en el navegador y usa Imprimir → Guardar como PDF. Los planos son un levantamiento referencial: para un permiso o una regularización deben ir firmados por un arquitecto.</p></div>`+navHTML(S_PLA)}
 function drawSheet(){const b=$('#sheet');if(b)b.innerHTML=sheetSVG(UI.sheet);const t=document.querySelector('.tabs [aria-pressed="true"]');if(t&&t.parentElement)t.parentElement.scrollLeft=t.offsetLeft-16}
 
@@ -592,12 +622,7 @@ function r3D(){return hstep(S_3D,'Recorrido 3D','Maqueta navegable de la casa en
 /* ============ render ============ */
 function render(){CH();renderHeader();stop3D();const m=$('#main');
   m.innerHTML=[rProyecto,rCaptura,rTerreno,rCasa,rRecintos,rVanos,rMateriales,rRevision,rPlanos,r3D][UI.step]();
-  if(UI.step===0){drawSum();IA.mode().then(m=>{const el=$('#iastat');if(!el)return;
-    const propia=`<details class="iaadv"><summary>Usar mi propia clave de Claude (opcional)</summary><p class="note">Solo si quieres usar Claude en vez de la IA incluida. Cada análisis tiene costo en tu cuenta de Anthropic.</p><div class="row"><div class="inp" style="flex:1;min-width:200px"><input id="ia-key" type="password" placeholder="sk-ant-…" autocomplete="off"></div><button class="btn sm" data-act="iakey">Guardar clave</button></div></details>`;
-    el.innerHTML=m==='claude'?'<p class="note">Disponible: en esta vista previa la IA de Claude analiza las fotos sin configurar nada.</p>':
-      m==='api'?'<p class="note">Usando tu propia clave de Claude.</p><div class="row"><button class="btn sm" data-act="iakey">Volver a la IA incluida</button></div>':
-      m==='servidor'?'<p class="note"><b>Lista para usar.</b> La IA incluida reconoce el terreno y los elementos de las fotos; no necesitas configurar nada. En esta etapa de prueba es gratuita y tiene un límite de usos por minuto.</p><div class="row"><button class="btn sm" data-act="iatest">Probar la IA</button></div>'+propia:
-      '<p class="note">La IA todavía no está conectada en esta versión de la app. Puedes medir, armar el croquis y agregar elementos a mano igual.</p>'+propia})}
+  if(UI.step===0)drawSum();
   if(UI.step===1&&UI.videoEl){$('#vslot').appendChild(UI.videoEl);markPanel()}
   if(UI.step===2)drawSite();if(UI.step===3)drawCasa();if(UI.step===4)drawEditor('ed');if(UI.step===5)drawEditor('vprev');if(UI.step===S_PLA)drawSheet();if(UI.step===S_3D)open3D()}
 function refreshLive(){CH();renderHeader();const a=$('#asst');if(a)a.outerHTML=asstHTML(UI.step);
@@ -621,7 +646,7 @@ function arm(btn,key,label){if(armed&&armed.key===key&&Date.now()-armed.t<5000){
 document.addEventListener('click',e=>{const b=e.target.closest('button,[data-ph]');if(!b)return;const d=b.dataset;
   if(d.ph){openLB(d.ph);return}
   if(d.step!=null){goStep(+d.step);return}
-  if(b.id==='pend'){goStep(S_REV);return}
+  if(b.id==='pend'||b.id==='tape'){goStep(S_REV);return}
   if(d.goitem!=null){const it=LAST.items[+d.goitem];if(it)goItem(it);return}
   if(d.asnext!=null){UI.asst++;$('#asst').outerHTML=asstHTML(UI.step);return}
   if(d.okid){P.ok[d.okid]=true;persist();CH();if(UI.step===S_REV||UI.step===S_MAT)render();else refreshLive();return}
@@ -653,7 +678,7 @@ function act(a,b){
   case 'delproj':if(arm(b,'delproj','Toca otra vez: se borran datos, fotos y video')){const id=P.id;(async()=>{await flush();await Store.remove(id);UI.projects=await Store.list();if(UI.projects[0])await openProject(UI.projects[0].id);else await createProject('blank');await refreshProjects();goStep(0);toast('Levantamiento eliminado.')})()}break;
   case 'exportjson':exportBackup();break;
   case 'norte0':P.lote.norte=0;P.lote.norteOk=true;persist();render();break;
-  case 'addroom':{const n=P.recintos.length+1;const r={id:uid(),nombre:'Recinto '+n,tipo:'otro',x:0,y:0,ancho:0,largo:0,fotos:[],t:null,auto:true};P.recintos.push(r);UI.room=r.id;persist();if(UI.step!==4){UI.step=4;saveUI();renderHeader.done=0}render();$('#r-nombre')?.select();break}
+  case 'addroom':{const n=P.recintos.length+1;const r={id:uid(),nombre:'Recinto '+n,tipo:'otro',x:0,y:0,ancho:0,largo:0,fotos:[],t:null,auto:true,nivel:UI.nivel||0};P.recintos.push(r);UI.room=r.id;persist();if(UI.step!==4){UI.step=4;saveUI();renderHeader.done=0}render();$('#r-nombre')?.select();break}
   case 'duproom':{const r=room(UI.room);if(!r)break;const c={...r,id:uid(),nombre:r.nombre+' (copia)',fotos:[],t:null};if(valid(c)){const sp=freeSpot(c);c.x=sp.x;c.y=sp.y}P.recintos.push(c);UI.room=c.id;persist();render();break}
   case 'delroom':if(arm(b,'delroom','Toca otra vez para eliminar')){for(const f of room(UI.room)?.fotos||[])Store.delBlob(P.id,f);P.vanos=P.vanos.filter(v=>v.recinto!==UI.room);P.recintos=P.recintos.filter(r=>r.id!==UI.room);P.video.marcas=P.video.marcas.filter(m=>m.room!==UI.room);UI.room=P.recintos[0]?.id||null;persist();render()}break;
   case 'delvano':if(arm(b,'delvano','Toca otra vez para eliminar')){P.vanos=P.vanos.filter(v=>v.id!==UI.vano);UI.vano=null;persist();render()}break;
@@ -817,7 +842,7 @@ function build3D(){const S=V.scene;if(V.root){S.remove(V.root);V.root.traverse(o
   if(!MC.has('glass'))MC.set('glass',new THREE.MeshStandardMaterial({color:lin(0x9fbfcc),roughness:.04,metalness:.1,transparent:true,opacity:.3,envMapIntensity:1.6,depthWrite:false,side:THREE.DoubleSide}));const mGlass=MC.get('glass');
 
   /* entorno: pasto, lote, vereda, solera y calzada */
-  const gg=new THREE.PlaneGeometry(700,700);gg.rotateX(-Math.PI/2);gg.translate(F/2,-0.2,-D/2);uvWorld(gg);add(gg,mStd('grass','#56743A',{rough:1}),{cast:false});
+  const gg=pendTer().p>0?new THREE.PlaneGeometry(700,700,140,140):new THREE.PlaneGeometry(700,700);gg.rotateX(-Math.PI/2);gg.translate(F/2,-0.2,-D/2);uvWorld(gg);add(gg,mStd('grass','#56743A',{rough:1}),{cast:false});
   {const sh=new THREE.Shape((LP||[[0,0],[F,0],[F,D],[0,D]]).map(q=>new THREE.Vector2(q[0],q[1])));const lg=new THREE.ShapeGeometry(sh);lg.rotateX(-Math.PI/2);lg.translate(0,-0.17,0);add(lg,mCat('terreno',M.terreno||'pasto',{side:1}),{cast:false})}
   /* caja orientada a lo largo de un lado a→b del terreno (t: tramo 0..1, p: desplazamiento perpendicular) */
   const eb=(a,b,t0,t1,p0,p1,z0,z1)=>{const dx=b[0]-a[0],dy=b[1]-a[1],l=Math.hypot(dx,dy)||1;const g=new THREE.BoxGeometry(Math.max(.001,(t1-t0)*l),Math.max(.001,z1-z0),Math.max(.001,p1-p0));uvWorld(g);
@@ -830,26 +855,30 @@ function build3D(){const S=V.scene;if(V.root){S.remove(V.root);V.root.traverse(o
   if(oz>0.4)add(boxG(px-0.6,px+0.6,0,oz-e/2-0.35,-0.17,-0.15),mStd('pavers','#B7B3AB',{rough:.9}),{cast:false});
   if(fd)add(boxG(px-0.75,px+0.75,oz-e/2-0.38,oz-e/2,-0.17,-0.02),mConc);
 
+  const nCasa0=root.children.length;
   /* pilotes bajo una casa elevada */
   if(np>0){const pm=mStd(P.fund?.mat==='hormigon'||P.fund?.tipo==='poyos'?'concrete':'woodV',P.fund?.mat==='hormigon'||P.fund?.tipo==='poyos'?'#B4B1AA':'#7A5A3C',{rough:.9});const pl=pilotesCasa();for(const [x,y] of (pl.length?pl:[[0,0],[W,0],[0,L],[W,L]]))add(boxG(ox+x-.1,ox+x+.1,oz+y-.1,oz+y+.1,-0.2,np-0.17),pm)}
   /* sobrecimiento y pisos */
   add(hb(-e/2-0.03,W+e/2+0.03,-e/2-0.03,L+e/2+0.03,-0.17,-0.002),mConc,{cast:false});
-  for(const r of P.recintos){if(!valid(r))continue;add(hb(r.x,r.x+r.ancho,r.y,r.y+r.largo,-0.002,0.004),mCat('piso',floorOf(r)),{cast:false})}
+  /* cada piso: pisos terminados, muros con sus vanos, ventanas y puertas (zo = altura del piso) */
+  V.col=[];
+  const hb0=hb;
+  const nivel3D=(G,RVn,zo,primero)=>{const hb=(x0,x1,y0,y1,z0,z1)=>hb0(x0,x1,y0,y1,z0+zo,z1+zo);
+  for(const r of RVn){add(hb(r.x,r.x+r.ancho,r.y,r.y+r.largo,-0.002,0.004),mCat('piso',floorOf(r)),{cast:false})}
 
   /* muros: cada cara toma el revestimiento del lado al que mira */
-  const roomAt=(x,y)=>P.recintos.find(r=>valid(r)&&x>r.x-EPS&&x<r.x+r.ancho+EPS&&y>r.y-EPS&&y<r.y+r.largo+EPS);
+  const roomAt=(x,y)=>RVn.find(r=>x>r.x-EPS&&x<r.x+r.ancho+EPS&&y>r.y-EPS&&y<r.y+r.largo+EPS);
   const outside=(x,y)=>x<-EPS||y<-EPS||x>W+EPS||y>L+EPS;
   const side=(x,y)=>{if(outside(x,y))return mExt;const r=roomAt(x,y);return r?mCat('muroInt',wallOf(r),roomColor(r)?{col:r.color}:{}):mIntDef};
-  const RV=P.recintos.filter(valid);const brk={h:[...new Set(RV.flatMap(r=>[r.x,r.x+r.ancho]))],v:[...new Set(RV.flatMap(r=>[r.y,r.y+r.largo]))]};
+  const RV=RVn;const brk={h:[...new Set(RV.flatMap(r=>[r.x,r.x+r.ancho]))],v:[...new Set(RV.flatMap(r=>[r.y,r.y+r.largo]))]};
   const split=(ax,a0,b0,ea,eb)=>{const pts=[a0,...brk[ax].filter(v=>v>a0+0.02&&v<b0-0.02).sort((u,w)=>u-w),b0];return pts.slice(1).map((v,i)=>({a:pts[i],b:v,ea:i===0&&ea,eb:i===pts.length-2&&eb}))};
   function seg(l,a0,b0,ea,eb,z0,z1){if(b0-a0<0.004||z1-z0<0.004)return;const t=l.t,A=a0-(ea?t/2:0),B=b0+(eb?t/2:0),m=(a0+b0)/2,end=l.ext?mExt:mIntDef;
     if(l.ax==='h'){const lo2=side(m,l.c-t/2-0.05),hi=side(m,l.c+t/2+0.05);add(hb(A,B,l.c-t/2,l.c+t/2,z0,z1),[end,end,mTop,mTop,lo2,hi])}
     else{const lo2=side(l.c-t/2-0.05,m),hi=side(l.c+t/2+0.05,m);add(hb(l.c-t/2,l.c+t/2,A,B,z0,z1),[hi,lo2,mTop,mTop,end,end])}}
-  V.col=[];
   for(const l of G.lines){const t=l.t;
     for(const p of pieces(l.iv,l.ops.map(q=>[q.s,q.e])))for(const sp of split(l.ax,p.a,p.b,p.ea,p.eb))seg(l,sp.a,sp.b,sp.ea,sp.eb,0,H);
     for(const q of l.ops){seg(l,q.s,q.e,false,false,0,q.z0);seg(l,q.s,q.e,false,false,q.z1,H)}
-    for(const p of pieces(l.iv,l.ops.filter(q=>q.walk).map(q=>[q.s,q.e]))){const a0=p.a-(p.ea?t/2:0),b0=p.b+(p.eb?t/2:0);V.col.push(l.ax==='h'?{x0:a0,x1:b0,y0:l.c-t/2,y1:l.c+t/2}:{x0:l.c-t/2,x1:l.c+t/2,y0:a0,y1:b0})}}
+    for(const p of pieces(l.iv,l.ops.filter(q=>q.walk).map(q=>[q.s,q.e]))){const a0=p.a-(p.ea?t/2:0),b0=p.b+(p.eb?t/2:0);if(primero)V.col.push(l.ax==='h'?{x0:a0,x1:b0,y0:l.c-t/2,y1:l.c+t/2}:{x0:l.c-t/2,x1:l.c+t/2,y0:a0,y1:b0})}}
 
   /* zócalo de fachada */
   if(M.zocalo&&M.zocalo!=='ninguno'){const mZ=mCat('zocalo',M.zocalo),zh=0.6;
@@ -869,15 +898,19 @@ function build3D(){const S=V.scene;if(V.root){S.remove(V.root);V.root.traverse(o
       const hg=q.hinge==='e'?q.e:q.s,ot=q.hinge==='e'?q.s:q.e,sg=Math.sign(ot-hg)||1;let Hx,Hy,d0,d9;
       if(q.ax==='h'){Hx=hg;Hy=q.c+q.inward*(t/2);d0=[sg,0];d9=[0,q.inward]}else{Hx=q.c+q.inward*(t/2);Hy=hg;d0=[0,sg];d9=[q.inward,0]}
       const an=1.2,dx=d0[0]*Math.cos(an)+d9[0]*Math.sin(an),dy=d0[1]*Math.cos(an)+d9[1]*Math.sin(an);
-      const leaf=add(g,mDoor);leaf.rotation.y=Math.atan2(dy,dx);leaf.position.copy(V.toW(Hx,Hy,0.006));
-      const hgeo=new THREE.BoxGeometry(0.13,0.025,0.075);hgeo.translate(w-0.08,1.0,0);const hd=add(hgeo,mMetal,{cast:false});hd.rotation.copy(leaf.rotation);hd.position.copy(leaf.position)}}
+      const leaf=add(g,mDoor);leaf.rotation.y=Math.atan2(dy,dx);leaf.position.copy(V.toW(Hx,Hy,0.006+zo));
+      const hgeo=new THREE.BoxGeometry(0.13,0.025,0.075);hgeo.translate(w-0.08,1.0,0);const hd=add(hgeo,mMetal,{cast:false});hd.rotation.copy(leaf.rotation);hd.position.copy(leaf.position)}}};
+  nivel3D(G,P.recintos.filter(r=>valid(r)&&nivelDe(r)===0),0,true);
+  for(let n=1;n<nPisos();n++){const zo=zPiso(n),Gn=geom(n);
+    add(hb(-e/2,W+e/2,-e/2,L+e/2,zo-entrepiso(),zo-0.002),[mExt,mExt,mConc,mConc,mExt,mExt]);
+    nivel3D(Gn,P.recintos.filter(r=>valid(r)&&nivelDe(r)===n),zo,false)}
 
   /* cielo */
-  V.ceil=add(hb(0,W,0,L,H,H+0.012),mCat('cielo',M.cielo||'yeso'),{cast:false});
+  const HT=hCasa();V.ceil=add(hb(0,W,0,L,HT,HT+0.012),mCat('cielo',M.cielo||'yeso'),{cast:false});
 
   /* frontones: extruidos con el espesor del muro */
-  if(c.techo!=='plana')for(const [ax,cc,len] of [['h',0,W],['h',L,W],['v',0,L],['v',W,L]]){const bp=[0,len/2,len];const hz=bp.map(u=>ax==='h'?roofZ(u,cc):roofZ(cc,u));if(Math.max(...hz)-H<0.01)continue;
-    const sh=new THREE.Shape();sh.moveTo(0,H);sh.lineTo(len,H);for(let i=2;i>=0;i--)sh.lineTo(bp[i],Math.max(H,hz[i]));sh.lineTo(0,H);
+  if(c.techo!=='plana')for(const [ax,cc,len] of [['h',0,W],['h',L,W],['v',0,L],['v',W,L]]){const bp=[0,len/2,len];const hz=bp.map(u=>ax==='h'?roofZ(u,cc):roofZ(cc,u));if(Math.max(...hz)-HT<0.01)continue;
+    const sh=new THREE.Shape();sh.moveTo(0,HT);sh.lineTo(len,HT);for(let i=2;i>=0;i--)sh.lineTo(bp[i],Math.max(HT,hz[i]));sh.lineTo(0,HT);
     const g=new THREE.ExtrudeGeometry(sh,{depth:e,bevelEnabled:false});
     if(ax==='h')g.translate(ox,0,-(oz+cc+e/2));else{g.rotateY(Math.PI/2);g.translate(ox+cc-e/2,0,-oz)}
     uvWorld(g);add(g,mExt)}
@@ -885,7 +918,7 @@ function build3D(){const S=V.scene;if(V.root){S.remove(V.root);V.root.traverse(o
   /* techumbre con espesor, tapacán, cumbrera, aleros, canaletas y bajadas */
   const roofG=new THREE.Group();root.add(roofG);V.roofG=roofG;
   const mRoof=mCat('cubierta',kRoof,{side:1}),mSoffit=mStd('paint','#ECE8E0',{rough:.85,side:1}),mFascia=mCat('molduras',M.molduras||'pintada',{side:1}),mGut=mStd('flat','#C3C7C9',{rough:.35,metal:.5});
-  if(c.techo==='plana'){add(hb(-a,W+a,-a,L+a,H,H+0.25),[mFascia,mFascia,mRoof,mSoffit,mFascia,mFascia],{to:roofG})}
+  if(c.techo==='plana'){add(hb(-a,W+a,-a,L+a,HT,HT+0.25),[mFascia,mFascia,mRoof,mSoffit,mFascia,mFascia],{to:roofG})}
   else{const rt=0.14,par=c.techo==='un-agua'||c.cumbrera==='paralela',ri=roofInfo(),f=Math.sqrt(1+ri.m*ri.m);const xs=roofBps('x'),ys=roofBps('y');
     const P3=(x,y,dz)=>V.toW(x,y,roofZ(x,y)+dz);
     const mk=(p,u)=>{const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(p,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(u,2));g.computeVertexNormals();return g};
@@ -908,6 +941,9 @@ function build3D(){const S=V.scene;if(V.root){S.remove(V.root);V.root.traverse(o
       else{const z=roofZ(ev,0)-0.03;add(hb(ev+o-0.06,ev+o+0.06,-a,L+a,z-0.11,z+0.02),mGut,{to:roofG});for(const y of [-a+0.2,L+a-0.2])add(hb(ev+o-0.04,ev+o+0.04,y-0.04,y+0.04,-0.17,z-0.1),mGut,{to:roofG})}}}
 
   buildVols3D(add,hb,mExt,mRoof);buildElems3D(root,ox,oz);
+  /* casa en pendiente: zócalo de hormigón hasta el terreno en el lado bajo */
+  {const m=Math.min(dzTer(0,0),dzTer(W,0),dzTer(0,L),dzTer(W,L));if(pendTer().p>0&&m<-0.03)add(hb(-e/2-0.03,W+e/2+0.03,-e/2-0.03,L+e/2+0.03,-0.17+m,-0.17),mConc,{cast:false})}
+  const nCasa1=root.children.length;
   /* cierre perimetral, siguiendo cada lado del terreno, con acceso frente a la puerta */
   const ce=MATS.cierre.opts[M.cierre];
   if(ce&&M.cierre!=='ninguno'&&LP){const hg=ce.h||1.6,fe=frontEdge(LP);
@@ -929,6 +965,11 @@ function build3D(){const S=V.scene;if(V.root){S.remove(V.root);V.root.traverse(o
   if(oz>4.5){const tx=px<Fx/2?Math.min(Fx-1.5,Fx*0.82):Math.max(1.5,Fx*0.18);tr(tx,oz*0.45,1.1)}
   if(oz>1.6)for(let x=ox+0.6;x<ox+W-0.4;x+=1.15){if(Math.abs(x-px)<1.1)continue;const g=new THREE.IcosahedronGeometry(0.36+0.08*Math.sin(x*3),1);g.scale(1,0.8,1);g.translate(x,-0.17+0.26,-(oz-e/2-0.55));add(g,leafM[Math.floor(x*7)%3])}
 
+  /* pendiente: todo lo que no es la casa sigue el terreno (vértice por vértice) */
+  if(pendTer().p>0){root.updateMatrixWorld(true);const v=new THREE.Vector3(),w2=new THREE.Vector3(),inv=new THREE.Matrix4();
+    root.children.forEach((ch,idx)=>{if(idx>=nCasa0&&idx<nCasa1)return;ch.traverse(o=>{if(!o.isMesh||!o.geometry?.attributes?.position)return;o.geometry=o.geometry.clone();const pa=o.geometry.attributes.position;inv.copy(o.matrixWorld).invert();
+      for(let k=0;k<pa.count;k++){v.fromBufferAttribute(pa,k).applyMatrix4(o.matrixWorld);w2.copy(v);w2.y+=dzTer(Math.max(V.X0-2,Math.min(F+2,v.x))-ox,Math.max(-12,Math.min(D+2,-v.z))-oz);w2.applyMatrix4(inv);pa.setXYZ(k,w2.x,w2.y,w2.z)}
+      pa.needsUpdate=true;o.geometry.computeBoundingSphere();o.geometry.computeVertexNormals?.()})})}
   /* sol desde el norte, con sombras ajustadas al terreno */
   const ctr=new THREE.Vector3(F/2,0,-D/2),ext=Math.max(F,D)/2+8,sd=sunDir(),sl=V.sunL;
   sl.position.copy(ctr).addScaledVector(sd,90);sl.target.position.copy(ctr);Object.assign(sl.shadow.camera,{left:-ext,right:ext,top:ext,bottom:-ext,near:1,far:220});sl.shadow.camera.updateProjectionMatrix();
@@ -994,3 +1035,9 @@ async function boot(){$('#main').innerHTML='<p class="note">Abriendo levantamien
     App?.addListener('pause',()=>{flush()})}
   document.addEventListener('visibilitychange',()=>{if(document.hidden)flush()})}
 boot();
+
+/* Al activar o perder la licencia Pro se vuelven a dibujar las láminas (marca de borrador). */
+document.addEventListener('huincha-licencia',()=>{try{if(UI.step===S_PLA)drawSheet()}catch(e){}});
+
+/* selector de piso en el paso Recintos */
+document.addEventListener('click',e=>{const b=e.target.closest('[data-nivel]');if(!b)return;UI.nivel=+b.dataset.nivel||0;const r=room(UI.room);if(!r||nivelDe(r)!==UI.nivel)UI.room=P.recintos.find(x=>nivelDe(x)===UI.nivel)?.id||null;render()});

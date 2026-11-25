@@ -81,8 +81,8 @@ document.addEventListener('click',e=>{const b=e.target.closest('[data-est]');if(
 /* ---------- entradas desde los pasos ---------- */
 function estCardHTML(){const L=P.estaciones||[],h=L.filter(e=>e.estado==='marcada').length,sig=L.find(e=>e.estado!=='marcada'&&e.tipo!=='interior');
   return`<div class="card estentry" id="estcard"><div class="row sb"><h3>Recorrido por estaciones</h3><span class="lbl">${L.length?`${h} de ${L.length} marcadas`:'Recomendado'}</span></div>
-    <p class="note">La app te lleva lugar por lugar desde el portón: en cada estación sacas una foto, marcas lo que se ve (muros, aguas, puertas, ventanas, pisos, cobertizos…) con su material y sus medidas, y se dibuja en el croquis.${P.lote.geo?'':' Primero marca el terreno y la casa en el mapa: así cada cosa queda bien ubicada.'}</p>
-    ${sig?`<p class="note"><b>Siguiente:</b> ${esc(sig.n)}</p>`:''}<div class="row"><button class="btn pri" data-estabrir>${L.length?'Seguir el recorrido':'Empezar el recorrido'}</button></div></div>`}
+    <p class="note">La app te lleva lugar por lugar desde el portón: en cada estación sacas una foto, marcas lo que se ve (muros, aguas, puertas, ventanas, pisos, cobertizos…) con su material y sus medidas, y se dibuja en el croquis.${P.lote.geo?'':' Antes, marca el terreno y la casa en el mapa (arriba): así cada cosa queda bien ubicada.'}</p>
+    ${sig?`<p class="note"><b>Siguiente:</b> ${esc(sig.n)}</p>`:''}<div class="row"><button class="btn ${P.lote.geo?'pri':''}" data-estabrir>${L.length?'Seguir el recorrido':'Empezar el recorrido'}</button></div></div>`}
 document.addEventListener('click',e=>{if(e.target.closest('[data-estabrir]'))estAbrir()});
 /* abrir el editor con una foto ya guardada (paso Fotos: «Identificar componentes») */
 async function efDesdeRef(clave,ref){P.estaciones=estGenerar();const est=P.estaciones.find(x=>x.clave===clave);if(!est)return;const ya=est.fotos.findIndex(f=>f.img===ref);if(ya>=0){efAbrir(est,null,ya);return}

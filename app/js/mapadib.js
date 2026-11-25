@@ -127,13 +127,17 @@ document.addEventListener('change',e=>{const t=e.target;if(!$('#mapov')||!MV.geo
   if(t.dataset.dlen!=null){const v=num(t.value);if(v>0){dibLargo(it,+t.dataset.dlen,v);drawMap()}}});
 
 /* ---------- 4. nombres de calles y dirección (OpenStreetMap) ---------- */
+/* Los servidores públicos de OpenStreetMap piden no repetir consultas: se guardan 30 días en el teléfono. */
+async function osmCache(k,fn){const K='huincha.osm.'+k;try{const c=JSON.parse(localStorage.getItem(K)||'null');if(c&&Date.now()-c.t<2592e6)return c.v}catch(e){}
+  const v=await fn();if(v)try{localStorage.setItem(K,JSON.stringify({t:Date.now(),v}))}catch(e){}return v}
 async function callesBuscar(quiet){const G=MV.geo;if(!G||G.pts.length<3){if(!quiet)toast('Primero marca el terreno.');return}
   const n=G.pts.length,c=[G.pts.reduce((s,p)=>s+p[0],0)/n,G.pts.reduce((s,p)=>s+p[1],0)/n];if(!quiet)toast('Buscando nombres de calles…');
   try{const fi=((G.frente|0)%n+n)%n,a=G.pts[fi],b=G.pts[(fi+1)%n];
-    const rv=await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&zoom=18&addressdetails=1&lat=${(a[0]+b[0])/2}&lon=${(a[1]+b[1])/2}`,{headers:{'Accept-Language':'es'}}).then(r=>r.json()).catch(()=>null);
+    const la=((a[0]+b[0])/2).toFixed(5),lo=((a[1]+b[1])/2).toFixed(5);
+    const rv=await osmCache('rv'+la+','+lo,()=>fetch(`https://nominatim.openstreetmap.org/reverse?format=json&zoom=18&addressdetails=1&lat=${la}&lon=${lo}`,{headers:{'Accept-Language':'es'}}).then(r=>r.json()).catch(()=>null));
     const ad=rv?.address||{};MV.dir={calle:ad.road||ad.pedestrian||ad.footway||'',num:ad.house_number||'',comuna:ad.city||ad.town||ad.village||ad.municipality||ad.suburb||''};
     const q=`[out:json][timeout:20];way(around:90,${c[0]},${c[1]})["highway"]["name"];out geom;`;
-    const ov=await fetch('https://overpass-api.de/api/interpreter',{method:'POST',body:'data='+encodeURIComponent(q),headers:{'Content-Type':'application/x-www-form-urlencoded'}}).then(r=>r.json()).catch(()=>null);
+    const ov=await osmCache('ov'+c[0].toFixed(4)+','+c[1].toFixed(4),()=>fetch('https://overpass-api.de/api/interpreter',{method:'POST',body:'data='+encodeURIComponent(q),headers:{'Content-Type':'application/x-www-form-urlencoded'}}).then(r=>r.json()).then(j=>({elements:(j.elements||[]).map(w=>({geometry:w.geometry,tags:{name:w.tags?.name}}))})).catch(()=>null));
     const ways=(ov?.elements||[]).filter(w=>w.geometry?.length>1);const out={};const ref=c;
     for(let i=0;i<n;i++){const A=G.pts[i],B=G.pts[(i+1)%n];const [la,lb]=GeoLot.local([A,B],ref),m=[(la[0]+lb[0])/2,(la[1]+lb[1])/2],ang=Math.atan2(lb[1]-la[1],lb[0]-la[0]);let best=null;
       for(const w of ways){const W=GeoLot.local(w.geometry.map(g=>[g.lat,g.lon]),ref);for(let k=0;k<W.length-1;k++){const p=W[k],q2=W[k+1],dx=q2[0]-p[0],dy=q2[1]-p[1],L2=dx*dx+dy*dy||1,t=Math.max(0,Math.min(1,((m[0]-p[0])*dx+(m[1]-p[1])*dy)/L2)),d=Math.hypot(m[0]-p[0]-dx*t,m[1]-p[1]-dy*t);

@@ -1,8 +1,11 @@
 {
- "web": 33,
- "nativo": "d4ddf86d46c2",
+ "web": 38,
+ "nativo": "8a3bfb548f73",
+ "sha256": "a9d248ade259c3752a0567219b1600178a851fad1fbbc69a3cd6c8c91fc9ea86",
+ "firma": "",
+ "apk_tipo": "prueba",
  "zip": "web.zip",
  "apk": "huincha3.apk",
- "fecha": "2026-11-16T18:08:07Z",
- "notas": "Foto de fachada en pasos guiados (muro, techo, ventanas, puertas, otros) con elevación en vivo, avisos de coherencia, construcciones adosadas e IA solo a pedido."
+ "fecha": "2026-11-25T14:09:11Z",
+ "notas": "Huincha Pro (licencias), permiso antes de enviar fotos a la IA, nuevo diseño del avance, planta de cubierta, cortes con fundación y cerchas, PDF/DXF/Excel, casas de varios pisos y terrenos en pendiente."
 }

@@ -23,7 +23,7 @@ const Upd=(()=>{
     try{const r=await fetch(BASE+'version.json?t='+Date.now(),{cache:'no-store'});
       if(!r.ok){S.estado='error';S.msg='Todavía no hay actualizaciones publicadas.';return}
       const j=await r.json();
-      S.remota={web:+j.web||0,nativo:j.nativo||'',fecha:j.fecha||'',notas:j.notas||'',zip:BASE+(j.zip||'web.zip'),apk:BASE+(j.apk||'huincha3.apk')};
+      S.remota={web:+j.web||0,nativo:j.nativo||'',sha256:j.sha256||'',firma:j.firma||'',fecha:j.fecha||'',notas:j.notas||'',zip:BASE+(j.zip||'web.zip'),apk:BASE+(j.apk||'huincha3.apk')};
       if(S.remota.web<=web()){S.estado='aldia';return}
       const nat=S.info?.nativo;
       S.estado=(nat&&nat!=='local'&&S.remota.nativo&&S.remota.nativo!==nat)?'apk':'disponible'}
@@ -34,7 +34,7 @@ const Upd=(()=>{
     const p=plug();if(!p||!S.remota?.zip)return;
     S.busy=true;S.estado='instalando';pinta();
     try{if(typeof flush==='function')await flush()}catch(x){}
-    try{await p.instalar({url:S.remota.zip,token:'',version:S.remota.web})/* la app se recarga sola con la versión nueva */}
+    try{await p.instalar({url:S.remota.zip,token:'',version:S.remota.web,nativo:S.remota.nativo,sha256:S.remota.sha256,firma:S.remota.firma})/* la app se recarga sola con la versión nueva */}
     catch(x){S.busy=false;S.estado='error';S.msg=(x&&x.message)||'No se pudo instalar la actualización.';pinta()}}
 
   function cardHTML(){return`<div class="card" id="updcard">${cuerpo()}</div>`}
