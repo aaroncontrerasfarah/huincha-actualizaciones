@@ -103,19 +103,35 @@ const zPiso=n=>n*((+P.casa.altura||2.4)+entrepiso()),hCasa=()=>zPiso(nPisos()-1)
    de la casa, respecto del terreno junto al centro de la fachada principal. */
 const pendTer=()=>{const p=Math.max(0,Math.min(60,+P.lote.pendiente||0))/100,d=P.lote.pendDir||'sube-fondo';return{p,gx:d==='sube-der'?p:d==='sube-izq'?-p:0,gy:d==='sube-fondo'?p:d==='baja-fondo'?-p:0}};
 const dzTer=(x,y)=>{const g=pendTer();return g.gx*(x-(+P.casa.ancho||0)/2)+g.gy*y};
+/* resta de intervalos: partes de A que no están en B */
+function restaIv(A,B){const out=[];for(const [a,b] of A){let cur=[[a,b]];for(const [p,q] of B){const nx=[];for(const [u,v] of cur){if(q<=u+EPS||p>=v-EPS){nx.push([u,v]);continue}if(p>u+EPS)nx.push([u,p]);if(q<v-EPS)nx.push([q,v])}cur=nx}out.push(...cur)}return out.filter(([u,v])=>v-u>EPS)}
 function geom(nivel=0){const c=P.casa,W=+c.ancho||0,L=+c.largo||0,H=+c.altura||2.4;const lines=new Map();const enNivel=r=>nivelDe(r)===nivel;
   const add=(ax,cc,a,b)=>{if(b-a<EPS)return;const k=lkey(ax,cc);if(!lines.has(k))lines.set(k,{ax,c:cc,iv:[],ops:[]});lines.get(k).iv.push([a,b])};
-  if(W>0&&L>0){add('h',0,0,W);add('h',L,0,W);add('v',0,0,L);add('v',W,0,L)}
-  for(const r of P.recintos){if(!valid(r)||!enNivel(r))continue;add('h',r.y,r.x,r.x+r.ancho);add('h',r.y+r.largo,r.x,r.x+r.ancho);add('v',r.x,r.y,r.y+r.largo);add('v',r.x+r.ancho,r.y,r.y+r.largo)}
-  for(const l of lines.values()){l.iv=union(l.iv);l.ext=W>0&&((l.ax==='h'&&(near(l.c,0)||near(l.c,L)))||(l.ax==='v'&&(near(l.c,0)||near(l.c,W))));l.t=l.ext?(+c.eExt||0.2):(+c.eInt||0.15)}
-  const ops=[];for(const v of P.vanos){const rv=room(v.recinto);if(rv&&!enNivel(rv))continue;const o=opAbs(v);if(!o||!o.valid)continue;const l=lines.get(lkey(o.ax,o.c));if(l)l.ops.push(o);ops.push(o)}
+  /* muros exteriores: contorno conjunto del cuerpo principal y las alas en el suelo que llegan a este piso (casas en L, U, T) */
+  const ps=typeof partesSuelo==='function'?partesSuelo().filter(p=>p.main?true:Math.max(1,+p.ala.pisos||1)>nivel):[{main:true,x0:0,y0:0,x1:W,y1:L}];
+  const extK=new Map();
+  if(W>0&&L>0)for(const sg of (ps.length>1?contornoRects(ps):[{ax:'h',c:0,a:0,b:W},{ax:'h',c:L,a:0,b:W},{ax:'v',c:0,a:0,b:L},{ax:'v',c:W,a:0,b:L}])){
+    const k=lkey(sg.ax,sg.c)+'e';if(!lines.has(k))lines.set(k,{ax:sg.ax,c:sg.c,iv:[],ops:[],ext:true});lines.get(k).iv.push([sg.a,sg.b])}
+  const elev=new Set(typeof partesElevadas==='function'?partesElevadas().map(p=>p.id):[]);
+  for(const r of P.recintos){if(!valid(r)||!enNivel(r)||(elev.size&&elev.has(parteDe(r))))continue;add('h',r.y,r.x,r.x+r.ancho);add('h',r.y+r.largo,r.x,r.x+r.ancho);add('v',r.x,r.y,r.y+r.largo);add('v',r.x+r.ancho,r.y,r.y+r.largo)}
+  for(const l of lines.values()){l.iv=union(l.iv);if(!l.ext){l.ext=false;const e=lines.get(lkey(l.ax,l.c)+'e');if(e)l.iv=restaIv(l.iv,union(e.iv))}l.t=l.ext?(+c.eExt||0.2):(+c.eInt||0.15)}
+  for(const [k,l] of [...lines])if(!l.iv.length)lines.delete(k);
+  const ops=[];for(const v of P.vanos){const rv=room(v.recinto);if(rv&&!enNivel(rv))continue;const o=opAbs(v);if(!o||!o.valid)continue;if(elev.size&&rv&&elev.has(parteDe(rv)))continue;const inIv=l=>l&&l.iv.some(([a,b])=>o.s>=a-EPS&&o.e<=b+EPS);const le=lines.get(lkey(o.ax,o.c)+'e'),li=lines.get(lkey(o.ax,o.c));const l=inIv(le)?le:inIv(li)?li:(le||li);if(l)l.ops.push(o);ops.push(o)}
   return{W,L,H,lines:[...lines.values()],ops,nivel}}
-const lineOf=(G,q)=>G.lines.find(l=>l.ax===q.ax&&near(l.c,q.c));
+const lineOf=(G,q)=>G.lines.find(l=>l.ax===q.ax&&near(l.c,q.c)&&l.iv.some(([a,b])=>q.s>=a-EPS&&q.e<=b+EPS))||G.lines.find(l=>l.ax===q.ax&&near(l.c,q.c));
 function edgeMatch(q,r){if(q.ax==='h')return(near(q.c,r.y)||near(q.c,r.y+r.largo))&&q.s<r.x+r.ancho-EPS&&q.e>r.x+EPS;
   return(near(q.c,r.x)||near(q.c,r.x+r.ancho))&&q.s<r.y+r.largo-EPS&&q.e>r.y+EPS}
 /* quiebres del techo a lo largo de un eje (para elevaciones, cortes y 3D) */
-function roofBps(ax){const c=P.casa,W=+c.ancho||0,L=+c.largo||0,a=+c.alero||0,len=ax==='x'?W:L;const b=[-a,0,len/2,len,len+a];if(c.techo==='cuatro-aguas'){const sp=Math.min(W,L)/2;b.push(sp,len-sp)}return[...new Set(b.map(v=>Math.round(v*1000)/1000))].sort((p,q)=>p-q)}
-function roofZ(x,y){const c=P.casa,W=c.ancho,L=c.largo,H=hCasa(),h=+c.hTecho||0;
+function roofBps(ax){const c=P.casa,W=+c.ancho||0,L=+c.largo||0,a=+c.alero||0,len=ax==='x'?W:L;const b=[-a,0,len/2,len,len+a];if(c.techo==='cuatro-aguas'){const sp=Math.min(W,L)/2;b.push(sp,len-sp)}
+  if(typeof hayAlas==='function'&&hayAlas())for(const p of partes()){if(p.main)continue;const u0=ax==='x'?p.x0:p.y0,u1=ax==='x'?p.x1:p.y1;b.push(u0-a,u0,(u0+u1)/2,u1,u1+a);const lb=conCasa(p,()=>roofBps(ax));for(const v of lb)b.push(v+u0)}
+  return[...new Set(b.map(v=>Math.round(v*1000)/1000))].sort((p,q)=>p-q)}
+/* Techo de la casa completa: cada parte (cuerpo principal y alas) tiene el suyo; en las uniones manda el más alto.
+   Alturas medidas desde el piso del cuerpo principal. */
+function roofZ(x,y){if(typeof hayAlas!=='function'||!hayAlas())return roofZ0(x,y);const a=+P.casa.alero||0,np0=nivelPiso();let best=-Infinity;
+  for(const p of partes()){if(x<p.x0-a-EPS||x>p.x1+a+EPS||y<p.y0-a-EPS||y>p.y1+a+EPS)continue;
+    const z=p.main?roofZ0(x,y):conCasa(p,()=>roofZ0(x-p.x0,y-p.y0))+p.hBase-np0;if(z>best)best=z}
+  return best>-Infinity?best:roofZ0(x,y)}
+function roofZ0(x,y){const c=P.casa,W=c.ancho,L=c.largo,H=hCasa(),h=+c.hTecho||0;
   if(c.techo==='plana'||!(W>0&&L>0))return H+0.2;
   if(c.techo==='un-agua')return H+h*(1-y/L);
   if(c.techo==='cuatro-aguas'){const sp=Math.min(W,L)/2;return H+h*Math.min(x,W-x,y,L-y)/sp}
@@ -185,7 +201,9 @@ function specRows(){const c=P.casa,M=P.mat,ri=roofInfo();
 const maxZ=()=>P.casa.techo==='plana'?hCasa()+0.2:hCasa()+(+P.casa.hTecho||0);
 function ovl(a,b){const w=Math.min(a.x+a.ancho,b.x+b.ancho)-Math.max(a.x,b.x),h=Math.min(a.y+a.largo,b.y+b.largo)-Math.max(a.y,b.y);return w>0&&h>0?w*h:0}
 function freeSpot(r){const c=P.casa;const others=P.recintos.filter(o=>o!==r&&valid(o));
-  for(let y=0;y<=c.largo-r.largo+EPS;y+=0.05)for(let x=0;x<=c.ancho-r.ancho+EPS;x+=0.05){const t={x:r2(x),y:r2(y),ancho:r.ancho,largo:r.largo};if(!others.some(o=>ovl(o,t)>0.0001))return t}
+  /* busca primero en el cuerpo principal y después en cada ala */
+  for(const p of (typeof partes==='function'?partes():[{x0:0,y0:0,x1:c.ancho,y1:c.largo}]))
+    for(let y=p.y0;y<=p.y1-r.largo+EPS;y+=0.05)for(let x=p.x0;x<=p.x1-r.ancho+EPS;x+=0.05){const t={x:r2(x),y:r2(y),ancho:r.ancho,largo:r.largo};if(!others.some(o=>ovl(o,t)>0.0001))return t}
   return{x:0,y:0}}
 
 /* ============ asistente: verificación ============ */
@@ -225,7 +243,7 @@ function CH(){const it=[],req=[];const c=P.casa,lo=P.lote,m=P.meta;
     need(r.x>=-EPS&&r.y>=-EPS&&r.x+r.ancho<=c.ancho+EPS&&r.y+r.largo<=c.largo+EPS,{step:4,room:r.id,msg:`${r.nombre} queda fuera del contorno de la casa.`,hint:'Arrástralo dentro del contorno o corrige sus medidas.',field:'r-x'})}
   const R=P.recintos.filter(valid);
   for(let i=0;i<R.length;i++)for(let j=i+1;j<R.length;j++){const a=ovl(R[i],R[j]);if(a>0.02)need(false,{step:4,room:R[j].id,msg:`${R[i].nombre} y ${R[j].nombre} se superponen ${fmt(a)} m².`,hint:'Ajusta la posición o las medidas de uno de los dos.',field:'r-x'})}
-  if(R.length&&c.ancho>0&&c.largo>0){const cov=R.reduce((s,r)=>s+ovl(r,{x:0,y:0,ancho:c.ancho,largo:c.largo}),0);const gap=c.ancho*c.largo-cov;
+  if(R.length&&c.ancho>0&&c.largo>0){const PS=typeof partes==='function'?partes():[{x0:0,y0:0,x1:c.ancho,y1:c.largo}];const R0=R.filter(r=>nivelDe(r)===0);const cov=PS.reduce((t,p)=>t+R0.reduce((u,r)=>u+ovl(r,{x:p.x0,y:p.y0,ancho:p.x1-p.x0,largo:p.y1-p.y0}),0),0);const gap=PS.reduce((t,p)=>t+(p.x1-p.x0)*(p.y1-p.y0),0)-cov;
     rev(gap<0.5,{id:'gap',step:4,msg:`Quedan ${fmt(gap,1)} m² de la casa sin recinto asignado.`,hint:'¿Falta un pasillo, un closet o una bodega? Si es un espacio vacío real, confirma.'})}
   for(const r of P.recintos)need(r.fotos.length,{step:1,room:r.id,msg:`Toma una foto de ${r.nombre}.`,hint:'Desde una esquina, mostrando la mayor parte del recinto. Aparecerá en la visita guiada.',photo:'r:'+r.id});
   for(const r of R){need(G.ops.some(q=>q.walk&&edgeMatch(q,r)),{step:5,room:r.id,msg:`¿Por dónde se entra a ${r.nombre}?`,hint:'Agrega su puerta o el vano libre que lo conecta.',add:'puerta'});
@@ -281,13 +299,21 @@ function planSVG(G,o){const {s,ox,oy}=o,L=G.L;const X=x=>ox+x*s,Y=y=>oy+(L-y)*s;
     h+=line(X(-ex2),Y(A),X(G.W+ext),Y(A),'cutl')+line(X(B),Y(-ex2),X(B),Y(L+ext),'cutl');
     const tag=(x,y,l,dx,dy)=>`<circle class="tag" cx="${r2(x)}" cy="${r2(y)}" r="${r2(tr)}"/>`+text(x,y+tr*0.36,l,tr*1.05,'text-anchor="middle" font-weight="700"')+`<polygon class="na" points="${ptsS([[x+dx*tr*1.9,y+dy*tr*1.9],[x+dx*tr*1+dy*tr*0.6,y+dy*tr*1-dx*tr*0.6],[x+dx*tr*1-dy*tr*0.6,y+dy*tr*1+dx*tr*0.6]])}"/>`;
     h+=tag(X(-ex2)-tr,Y(A),'A',0,-1)+tag(X(G.W+ext)+tr,Y(A),"A'",0,-1)+tag(X(B),Y(-ex2)+tr,'B',1,0)+tag(X(B),Y(L+ext)-tr,"B'",1,0)}
+  /* escaleras */
+  if(typeof escaleraPlantaSVG==='function'){const elv=new Set(!CTXP&&typeof partesElevadas==='function'?partesElevadas().map(p=>p.id):[]);for(const r of P.recintos)if(valid(r)&&r.tipo==='escalera'&&nivelDe(r)===(G.nivel||0)&&!(elv.size&&elv.has(parteDe(r))))h+=escaleraPlantaSVG(r,X,Y,s,fs)}
+  /* partes elevadas (sobre pilotes): su propia planta, encima, rotulada con su nivel */
+  if(!CTXP&&(G.nivel||0)===0&&typeof partesElevadas==='function')for(const p of partesElevadas()){const Lm=+P.casa.largo||0;
+    h+=conCasa(p,()=>planSVG(geom(),Object.assign({},o,{ox:o.ox+p.x0*s,oy:o.oy+(Lm-p.y1)*s,cuts:false,sel:null})));
+    for(const pl of conCasa(p,()=>pilotesCasa().length?pilotesCasa():[[.15,.15],[p.x1-p.x0-.15,.15],[.15,p.y1-p.y0-.15],[p.x1-p.x0-.15,p.y1-p.y0-.15]]))h+=`<rect class="pil" x="${r2(X(p.x0+pl[0])-.1*s)}" y="${r2(Y(p.y0+pl[1])-.1*s)}" width="${r2(.2*s)}" height="${r2(.2*s)}"/>`;
+    h+=text(X((p.x0+p.x1)/2),Y(p.y1)-fs*.6,`${(p.ala.nombre||'ALA').toUpperCase()} · SOBRE PILOTES NPT +${fmt(p.hBase)}`,fs*.8,'text-anchor="middle" font-weight="700"','tx')}
   return h}
-
 function siteSVG(o){const {s,ox,oy}=o,lo=P.lote,c=P.casa;const fs=o.fs||2.4;const b=o.box||lotBox();const F=lo.frente||0,D=lo.fondo||0;const X=x=>ox+(x-b.x0)*s,Y=y=>oy-y*s;let h='';const LP=lotPoly();
   h+=rect(X(b.x0-3),Y(0),(b.w+6)*s,6*s,'street')+text(X(b.x0+b.w/2),Y(-3)+fs*0.4,(lo.calle?lo.calle:'Calle').toUpperCase(),fs*1.05,'text-anchor="middle" font-weight="700" letter-spacing="1"','tx tm');
   if(LP)h+=poly(LP.map(q=>[X(q[0]),Y(q[1])]),'lot');
   if(typeof curvasSVG==='function'&&c.ancho>0)h+=curvasSVG(X,Y,s,fs,+c.retiroIzq||0,+c.retiroFrontal||0);
-  if(c.ancho>0&&c.largo>0){const a=+c.alero||0,hx=c.retiroIzq,hy=c.retiroFrontal;h+=rect(X(hx-a),Y(hy+c.largo+a),(c.ancho+2*a)*s,(c.largo+2*a)*s,'dash')+rect(X(hx),Y(hy+c.largo),c.ancho*s,c.largo*s,'foot');
+  if(c.ancho>0&&c.largo>0){const a=+c.alero||0,hx=c.retiroIzq,hy=c.retiroFrontal;if(typeof hayAlas==='function'&&hayAlas()){for(const p of partes())h+=rect(X(hx+p.x0-a),Y(hy+p.y1+a),(p.x1-p.x0+2*a)*s,(p.y1-p.y0+2*a)*s,'dash');const pg=contornoPoligono(partesSuelo());if(pg)h+=poly(pg.map(q=>[X(hx+q[0]),Y(hy+q[1])]),'foot');
+    for(const p of partesElevadas())h+=rect(X(hx+p.x0),Y(hy+p.y1),(p.x1-p.x0)*s,(p.y1-p.y0)*s,'foot','style="stroke-dasharray:1.4 .8"')+text(X(hx+(p.x0+p.x1)/2),Y(hy+(p.y0+p.y1)/2)+fs*.3,'S/PILOTES',fs*.6,'text-anchor="middle"','tx tm')}
+  else h+=rect(X(hx-a),Y(hy+c.largo+a),(c.ancho+2*a)*s,(c.largo+2*a)*s,'dash')+rect(X(hx),Y(hy+c.largo),c.ancho*s,c.largo*s,'foot');
     h+=volSiteSVG(X,Y,s,hx,hy)+elemSiteSVG(X,Y,s,hx,hy);if(o.dims){h+=elemCotasSVG(X,Y,s,fs);if(typeof volCotasSVG==='function')h+=volCotasSVG(X,Y,s,fs,hx,hy)}h+=anotSVG(X,Y,s,fs);
     if(c.techo==='cuatro-aguas'){const sp=Math.min(c.ancho,c.largo)/2,r1=c.ancho>=c.largo?[hx+sp,hy+c.largo/2]:[hx+c.ancho/2,hy+sp],r2_=c.ancho>=c.largo?[hx+c.ancho-sp,hy+c.largo/2]:[hx+c.ancho/2,hy+c.largo-sp];h+=line(X(r1[0]),Y(r1[1]),X(r2_[0]),Y(r2_[1]),'dash');for(const [cx,cy,rp] of [[hx,hy,r1],[hx,hy+c.largo,r1],[hx+c.ancho,hy,r2_],[hx+c.ancho,hy+c.largo,r2_]])h+=line(X(cx),Y(cy),X(rp[0]),Y(rp[1]),'dash')}
     if(c.techo==='dos-aguas'){h+=c.cumbrera==='paralela'?line(X(hx-a),Y(hy+c.largo/2),X(hx+c.ancho+a),Y(hy+c.largo/2),'dash'):line(X(hx+c.ancho/2),Y(hy-a),X(hx+c.ancho/2),Y(hy+c.largo+a),'dash')}
@@ -302,15 +328,15 @@ function siteSVG(o){const {s,ox,oy}=o,lo=P.lote,c=P.casa;const fs=o.fs||2.4;cons
       h+=text(px,py+fs*0.3,fmt(l)+' m',fs*0.8,`text-anchor="middle" transform="rotate(${r2(ang)} ${r2(px)} ${r2(py)})"`,'tx mono')})}
   return h}
 
-function elevSVG(G,side,o){const c=P.casa,W=c.ancho,L=c.largo,H=c.altura,a=+c.alero||0,s=o.s,fs=o.fs||2.4;
+function elevSVG0(G,side,o){const c=P.casa,W=c.ancho,L=c.largo,H=c.altura,a=+c.alero||0,s=o.s,fs=o.fs||2.4;
   const E={frontal:{al:'x',u:x=>x,near:-a,ax:'h',wc:0,len:W},posterior:{al:'x',u:x=>W-x,near:L+a,ax:'h',wc:L,len:W},izquierda:{al:'y',u:y=>L-y,near:-a,ax:'v',wc:0,len:L},derecha:{al:'y',u:y=>y,near:W+a,ax:'v',wc:W,len:L}}[side];
   const rz=(al,d)=>E.al==='x'?roofZ(al,d):roofZ(d,al);
   const bps=roofBps(E.al),dps=roofBps(E.al==='x'?'y':'x');
   const np=nivelPiso(),U=al=>o.ox+E.u(al)*s,Z=z=>o.oy-(z+np)*s,Zg=z=>o.oy-z*s;let h='';
   const inner=bps.filter(b=>b>=-EPS&&b<=E.len+EPS);
   const top=bps.map(al=>[U(al),Z(Math.max(...dps.map(d=>rz(al,d))))]);const eave=bps.slice().reverse().map(al=>[U(al),Z(rz(al,E.near))]);
-  h+=poly([[U(0),Z(0)],[U(E.len),Z(0)],...inner.slice().reverse().map(al=>[U(al),Z(rz(al,E.wc))])],'fac',o.pat?`style="fill:url(#fx${o.sfx||''})"`:'');
-  h=volElevSVG(side,U,Zg,s,false)+h;
+  if(!o.soloExtras){h+=poly([[U(0),Z(0)],[U(E.len),Z(0)],...inner.slice().reverse().map(al=>[U(al),Z(rz(al,E.wc))])],'fac',o.pat?`style="fill:url(#fx${o.sfx||''})"`:'');
+  }if(!o.parte)h=volElevSVG(side,U,Zg,s,false)+h;if(!o.soloExtras){
   if(np>0){const pl=pilotesCasa();const xs=[...new Set((pl.length?pl:[[0,0],[W,0],[0,L],[W,L]]).map(p=>Math.round((E.al==='x'?p[0]:p[1])*100)/100))];for(const x of xs)h+=rect(U(x)-0.1*s,Z(0),0.2*s,np*s,'fac');h+=line(U(0),Z(0),U(E.len),Z(0),'bold')}
   if(P.mat.zocalo&&P.mat.zocalo!=='ninguno')h+=rect(U(0)<U(E.len)?U(0):U(E.len),Z(0.6),E.len*s,0.6*s,'zoc');
   h+=poly([...top,...eave],'roofE',o.pat?`style="fill:url(#rx${o.sfx||''})"`:'')+`<polyline class="bold" points="${ptsS(top)}"/>`;
@@ -318,6 +344,7 @@ function elevSVG(G,side,o){const c=P.casa,W=c.ancho,L=c.largo,H=c.altura,a=+c.al
   for(const [Gx,zo] of [[G,0],...Array.from({length:nPisos()-1},(_,i)=>[geom(i+1),zPiso(i+1)])])for(const q of Gx.ops){if(q.ax!==E.ax||!near(q.c,E.wc))continue;const x1=Math.min(U(q.s),U(q.e)),x2=Math.max(U(q.s),U(q.e)),y1=Z(q.z1+zo),y2=Z(q.z0+zo);
     if(q.isWin){h+=rect(x1,y1,x2-x1,y2-y1,'glass');if(q.e-q.s>0.9)h+=line((x1+x2)/2,y1,(x1+x2)/2,y2,'ln');h+=line(x1-0.04*s,y2,x2+0.04*s,y2,'bold')}
     else{h+=rect(x1,y1,x2-x1,y2-y1,q.v.tipo==='vano'?'fac':(q.v.tipo==='puerta-ventana'?'glass':'door'));if(q.v.tipo==='puerta')h+=`<circle class="na" cx="${r2(x2-0.12*s)}" cy="${r2(Z(1+zo))}" r="${r2(0.035*s)}"/>`}}
+  }if(o.parte)return h;
   h+=volElevSVG(side,U,Zg,s,true);const sp=elevSpan(side);
   const gx1=o.ox+sp.lo*s-1*s,gx2=o.ox+sp.hi*s+1*s;
   {const inv={frontal:u=>u,posterior:u=>W-u,izquierda:u=>L-u,derecha:u=>u}[side],dzU=u=>{const al=inv(u);return E.al==='x'?dzTer(al,E.wc):dzTer(E.wc,al)};
@@ -330,6 +357,15 @@ function elevSVG(G,side,o){const c=P.casa,W=c.ancho,L=c.largo,H=c.altura,a=+c.al
   if(o.title)h+=text((U(0)+U(E.len))/2,o.oy+fs*2.4,o.title,fs*1.05,'text-anchor="middle" font-weight="700" letter-spacing=".4"');
   if(o.note)h+=text((U(0)+U(E.len))/2,o.oy+fs*3.9,o.note,fs*0.78,'text-anchor="middle"','tx tm');
   return h}
+
+/* Elevación de la casa completa: cada parte (cuerpo principal y alas) se dibuja con su propio motor, de la más
+   lejana a la más cercana al observador, de modo que las cercanas tapan a las lejanas. */
+function elevSVG(G,side,o){if(typeof hayAlas!=='function'||!hayAlas())return elevSVG0(G,side,o);
+  const c=P.casa,Wm=+c.ancho,Lm=+c.largo,ps=partes();
+  const prof={frontal:p=>p.y0,posterior:p=>-p.y1,izquierda:p=>p.x0,derecha:p=>-p.x1}[side],off={frontal:p=>p.x0,posterior:p=>Wm-p.x1,izquierda:p=>Lm-p.y1,derecha:p=>p.y0}[side];
+  ps.sort((p,q)=>prof(q)-prof(p));let h='';
+  for(const p of ps)h+=conCasa(p,()=>elevSVG0(geom(),side,Object.assign({},o,{parte:true,title:null,note:null,ox:o.ox+off(p)*o.s,oy:o.oy})));
+  return h+elevSVG0(G,side,Object.assign({},o,{soloExtras:true}))}
 
 function sectSVG(G,which,o){const c=P.casa,W=c.ancho,L=c.largo,H=c.altura,a=+c.alero||0,s=o.s,fs=o.fs||2.4;const isA=which==='A';
   const depth=isA?P.cortes.a*L:P.cortes.b*W,len=isA?W:L,cutAx=isA?'v':'h';
@@ -418,11 +454,11 @@ function sheetSVG(i){syncSheets();const G=geom(SHEETS[i].n||0);const c=P.casa,lo
   if(!ok&&k!=='emp')body=text(210,130,'Faltan las medidas de la casa para dibujar esta lámina.',5,'text-anchor="middle"','tx tm');
   else if(k==='emp'){const b=lotBox(1),F=b.w,D=b.y1;den=pick(F+8,D+12,285,224);s=1000/den;
     const ox=15+(285-F*s)/2,oy=15+224-(224-(D+9)*s)/2-6*s;body=siteSVG({s,ox,oy,fs,dims:true,box:b})+text(15,240,'EMPLAZAMIENTO  ·  ESC. 1:'+den,3.2,'font-weight="700" letter-spacing=".4"');
-    body+=northArrow(330,40,9,lo.norte||0);const tx=310,tw=95;let ty=70;const rows=[['Superficie terreno',fmt(lotArea())+' m²'],['Superficie construida (casa)',fmt(c.ancho*c.largo*nPisos())+' m²'+(nPisos()>1?` (${nPisos()} pisos)`:'')],...obrasSup(false)>0?[['Otras construcciones existentes',fmt(obrasSup(false))+' m²']]:[],...obrasSup(true)>0?[['Construcciones proyectadas',fmt(obrasSup(true))+' m²']]:[],['Ocupación de suelo',lotArea()>0?fmt(c.ancho*c.largo/lotArea()*100,1)+' %':'—'],...(P.volumenes||[]).length?[['Volúmenes especiales',fmt(volArea())+' m²']]:[],['Superficie útil (recintos)',fmt(P.recintos.filter(valid).reduce((a,r)=>a+r.ancho*r.largo,0))+' m²'],['Recintos',String(P.recintos.filter(valid).length)],['Pisos',String(nPisos())],['Patio',mn('terreno',M.terreno)],...(pendTer().p>0?[['Pendiente del terreno',fmt(pendTer().p*100,0)+' %']]:[]),['Cierre',mn('cierre',M.cierre)]];
+    body+=northArrow(330,40,9,lo.norte||0);const tx=310,tw=95;let ty=70;const rows=[['Superficie terreno',fmt(lotArea())+' m²'],['Superficie construida (casa)',fmt(c.ancho*c.largo*nPisos()+(typeof areaAlas==='function'?areaAlas():0))+' m²'+(nPisos()>1?` (${nPisos()} pisos)`:'')+(typeof hayAlas==='function'&&hayAlas()?' · con alas':'')],...obrasSup(false)>0?[['Otras construcciones existentes',fmt(obrasSup(false))+' m²']]:[],...obrasSup(true)>0?[['Construcciones proyectadas',fmt(obrasSup(true))+' m²']]:[],['Ocupación de suelo',lotArea()>0?fmt(c.ancho*c.largo/lotArea()*100,1)+' %':'—'],...(P.volumenes||[]).length?[['Volúmenes especiales',fmt(volArea())+' m²']]:[],['Superficie útil (recintos)',fmt(P.recintos.filter(valid).reduce((a,r)=>a+r.ancho*r.largo,0))+' m²'],['Recintos',String(P.recintos.filter(valid).length)],['Pisos',String(nPisos())],['Patio',mn('terreno',M.terreno)],...(pendTer().p>0?[['Pendiente del terreno',fmt(pendTer().p*100,0)+' %']]:[]),['Cierre',mn('cierre',M.cierre)]];
     body+=text(tx,ty-4,'CUADRO DE SUPERFICIES',3,'font-weight="700" letter-spacing=".4"');for(const [a,b] of rows){body+=rect(tx,ty,tw,8,'cell')+text(tx+2,ty+5.4,a,2.5)+text(tx+tw-2,ty+5.4,b,2.5,'text-anchor="end"','tx mono');ty+=8}}
-  else if(k==='cub'){const a=+c.alero||0;let x0=-a,x1=c.ancho+a,y0=-a,y1=c.largo+a;for(const g of (typeof vols==='function'?vols():[])){x0=Math.min(x0,g.x0);x1=Math.max(x1,g.x1);y0=Math.min(y0,g.y0);y1=Math.max(y1,g.y1)}
+  else if(k==='cub'){const a=+c.alero||0;const hb2=houseVolBox();let x0=Math.min(-a,hb2.x0-a),x1=Math.max(c.ancho+a,hb2.x1+a),y0=Math.min(-a,hb2.y0-a),y1=Math.max(c.largo+a,hb2.y1+a);
     den=pick(x1-x0+6,y1-y0+7,280,212);s=1000/den;const ox=15+(280-(x1-x0)*s)/2-x0*s,oy=15+(212-(y1-y0)*s)/2-(c.largo-y1)*s;
-    body=cubiertaSVG({s,ox,oy,fs,sfx})+text(15,240,'PLANTA DE CUBIERTA  ·  ESC. 1:'+den,3.2,'font-weight="700" letter-spacing=".4"')+text(15,244.6,'i = pendiente del paño · BLL = bajada de agua lluvia · línea gruesa = cumbrera · segmentada = muros bajo el techo',2.2,'','tx tm')+northArrow(390,32,7,lo.norte||0);
+    body=(typeof hayAlas==='function'&&hayAlas()?partes().sort((p,q)=>(p.hBase||0)-(q.hBase||0)).map(p=>conCasa(p,()=>cubiertaSVG({s,ox:ox+p.x0*s,oy:oy+(c.largo-p.y1)*s,fs,sfx}))).join(''):cubiertaSVG({s,ox,oy,fs,sfx}))+text(15,240,'PLANTA DE CUBIERTA  ·  ESC. 1:'+den,3.2,'font-weight="700" letter-spacing=".4"')+text(15,244.6,'i = pendiente del paño · BLL = bajada de agua lluvia · línea gruesa = cumbrera · segmentada = muros bajo el techo',2.2,'','tx tm')+northArrow(390,32,7,lo.norte||0);
     const tx=300,tw=105;let ty=62;body+=text(tx,ty-4,'TECHUMBRE',3,'font-weight="700" letter-spacing=".4"');for(const [a2,b2] of cubiertaNotas()){body+=rect(tx,ty,tw,9,'cell')+text(tx+1.6,ty+3.4,a2,1.9,'','tx tm')+text(tx+1.6,ty+7.2,String(b2).slice(0,60),2.3,'font-weight="600"');ty+=9}}
   else if(k==='pla'&&vanosLista().length){const bb=houseVolBox();den=pick(bb.w+5,bb.h+5,280,212);s=1000/den;const ox=15+(280-bb.w*s)/2+0.6*s-bb.x0*s,oy=15+(212-bb.h*s)/2-(c.largo-bb.y1)*s-0.8*s;
     body=planSVG(G,{s,ox,oy,fs:Math.min(3,Math.max(1.8,s*0.26)),dims:true,cuts:true,sheet:true,sfx})+text(15,240,(SHEETS[i].n!=null?'PLANTA '+(SHEETS[i].n?(SHEETS[i].n+1)+'º PISO':'1ER PISO'):'PLANTA DE ARQUITECTURA')+'  ·  ESC. 1:'+den,3.2,'font-weight="700" letter-spacing=".4"')+text(15,244.6,'Pisos dibujados según terminación · NPT ±0,00',2.2,'','tx tm')+legendSVG(255,238.6,2.2)+northArrow(390,32,7,lo.norte||0);body+=artSVG(x=>ox+x*s,y=>oy+(G.L-y)*s,s,'arq',Math.min(3,Math.max(1.8,s*0.26)),SHEETS[i].n||0);
@@ -480,7 +516,7 @@ function rProyecto(){const G=geom(),c=P.casa,lo=P.lote;const R=P.recintos.filter
   `<div class="card"><div class="row sb"><h3>Mis levantamientos</h3><div class="row"><button class="btn sm" data-act="ejemplo">+ Ejemplo</button></div></div>${projectsHTML()}</div>
   <div class="card"><div class="grid">${tf('Nombre del proyecto','meta.nombre','Casa …')}${tf('Dirección','meta.direccion','Calle y número')}${tf('Comuna','meta.comuna')}${tf('Propietario','meta.propietario')}${tf('Levantamiento realizado por','meta.autor','Tu nombre')}${tf('Fecha','meta.fecha','','date')}</div></div>
   <div class="card"><div class="row sb"><h3>Resumen del levantamiento</h3>${P.ejemplo?'<span class="badge">Datos de ejemplo</span>':''}</div>
-   <div class="summ"><div><b>${fmt(lotArea(),0)} m²</b><span>Terreno</span></div><div><b>${fmt(c.ancho*c.largo,1)} m²</b><span>Construidos</span></div><div><b>${R.length}</b><span>Recintos</span></div><div><b>${G.ops.length}</b><span>Puertas y ventanas</span></div></div>
+   <div class="summ"><div><b>${fmt(lotArea(),0)} m²</b><span>Terreno</span></div><div><b>${fmt(c.ancho*c.largo*nPisos()+(typeof areaAlas==='function'?areaAlas():0),1)} m²</b><span>Construidos</span></div><div><b>${R.length}</b><span>Recintos</span></div><div><b>${G.ops.length}</b><span>Puertas y ventanas</span></div></div>
    <div class="edbox"><svg class="ed" id="sumPrev"></svg></div>
    <div class="row"><button class="btn pri" data-step="${S_PLA}">Ver planos</button><button class="btn" data-step="${S_3D}">Recorrido 3D</button></div></div>
   ${typeof Lic!=='undefined'?Lic.cardHTML():''}
@@ -528,6 +564,7 @@ function rCasa(){const c=P.casa;return hstep(3,'Casa','Volumen, ubicación en el
    ${c.techo==='dos-aguas'?`<div class="seg">${[['paralela','Cumbrera paralela a la calle'],['perpendicular','Cumbrera perpendicular a la calle']].map(([k,n])=>`<button class="btn sm" data-cumbrera="${k}" aria-pressed="${c.cumbrera===k}">${n}</button>`).join('')}</div>`:''}
    ${c.techo==='un-agua'?'<p class="note">La parte alta del techo queda hacia la calle.</p>':''}
    <div class="g2">${c.techo!=='plana'?nf('Altura de cumbrera sobre el cielo','casa.hTecho'):''}${nf('Alero','casa.alero')}</div></div>
+  ${typeof formaCardHTML==='function'?formaCardHTML():''}
   ${fundHTML()}
   ${volCardHTML()}
   <div class="edbox"><svg class="ed" id="casaPrev"></svg><div class="edcap"><span>Elevación principal y lateral izquierda</span><span>Se actualiza al escribir</span></div></div>`+techuHTML()+instalHTML()+navHTML(3)}
@@ -546,9 +583,10 @@ function rRecintos(){if(!room(UI.room))UI.room=P.recintos[0]?.id||null;const r=r
   ${r?`<div class="card" id="rform"><input class="titlein" id="r-nombre" data-rb="nombre" value="${esc(r.nombre)}" aria-label="Nombre del recinto">
    <div class="g2"><label class="fld"><span>Tipo</span><div class="inp sel"><select id="r-tipo" data-rb="tipo">${Object.entries(TIPOS).map(([k,t])=>`<option value="${k}" ${r.tipo===k?'selected':''}>${t.n}</option>`).join('')}</select></div></label><div class="fld"><span>Superficie</span><div class="area" id="rarea">${valid(r)?fmt(r.ancho*r.largo)+' m²':'—'}</div></div></div>
    <div class="g2">${rnf('Ancho','ancho','Paralelo a la fachada principal.')}${rnf('Largo','largo','Hacia el fondo.')}${rnf('Desde el muro izquierdo','x','Se ajusta al arrastrar.')}${rnf('Desde la fachada principal','y','Se ajusta al arrastrar.')}</div>
-   <div class="fld"><span>Fotos de referencia</span><div class="row">${r.fotos.map((d,i)=>`<img class="th" src="${phSrc(d)}" loading="lazy" data-ph="r:${r.id}|${i}" alt="Foto ${i+1}">`).join('')}${photoBtn('r:'+r.id)}${galBtn('r:'+r.id)}</div></div>
-   <div class="fld"><span>Artefactos, muebles e instalaciones</span>${artEditHTML(r.art,r.tipo,'r:'+r.id)}${r.art?'':`<button class="btn sm" data-arttip="${r.id}">Sugerir lo típico de ${esc(TIPOS[r.tipo]?.n.toLowerCase()||'este recinto')}</button>`}</div>
-   <div class="row"><button class="btn sm" data-act="duproom">Duplicar</button><button class="btn sm" data-addv="puerta" data-room="${r.id}">Agregar puerta o ventana</button><button class="btn sm danger" data-act="delroom" id="btnDelRoom">Eliminar recinto</button></div></div>`:''}`+navHTML(4)}
+   ${typeof fichaHTML==='function'?fichaHTML(r):''}
+   <div class="fld" id="r-foto" tabindex="-1"><span>Fotos de referencia</span><div class="row">${r.fotos.map((d,i)=>`<img class="th" src="${phSrc(d)}" loading="lazy" data-ph="r:${r.id}|${i}" alt="Foto ${i+1}">`).join('')}${photoBtn('r:'+r.id)}${galBtn('r:'+r.id)}</div></div>
+   <div class="fld" id="r-art" tabindex="-1"><span>Artefactos, muebles e instalaciones</span>${artEditHTML(r.art,r.tipo,'r:'+r.id)}${r.art?'':`<button class="btn sm" data-arttip="${r.id}">Sugerir lo típico de ${esc(TIPOS[r.tipo]?.n.toLowerCase()||'este recinto')}</button>`}</div>
+   <div class="row"><button class="btn sm" data-act="duproom">Duplicar</button><button class="btn sm" id="r-addv" data-addv="puerta" data-room="${r.id}">Agregar puerta o ventana</button><button class="btn sm danger" data-act="delroom" id="btnDelRoom">Eliminar recinto</button></div></div>`:''}`+navHTML(4)}
 const rnf=(lab,f,hint)=>{const r=room(UI.room);return`<label class="fld"><span>${lab}</span><div class="inp"><input id="r-${f}" data-rb="${f}" data-num inputmode="decimal" value="${(f==='x'||f==='y')?String(r2(r[f])).replace('.',','):showN(r[f])}" placeholder="0,00" autocomplete="off"><em>m</em></div><small>${hint}</small></label>`};
 const EDS=10;
 function drawEditor(id='ed'){const svg=$('#'+id);if(!svg)return;const c=P.casa;if(!(c.ancho>0&&c.largo>0)){svg.setAttribute('viewBox','0 0 100 24');svg.innerHTML=text(50,13,'Primero ingresa el frente y fondo de la casa (paso 4).',3.4,'text-anchor="middle"','tx tm');return}
@@ -831,9 +869,11 @@ function build3D(){const S=V.scene;if(V.root){S.remove(V.root);V.root.traverse(o
   const c=P.casa,lo=P.lote,M=P.mat,G=geom();V.G=G;const W=G.W,L=G.L,H=G.H,a=+c.alero||0,e=+c.eExt||0.2;
   const ox=+c.retiroIzq||0,oz=+c.retiroFrontal||0;V.ox=ox;V.oz=oz;
   const LP=lotPoly(),LB=lotBox(4),F=Math.max(LB.x1,ox+W+2),D=Math.max(LB.y1,oz+L+2);V.F=F;V.D=D;V.X0=Math.min(0,LB.x0);
-  const np=nivelPiso();V.np=np;V.toW=(x,y,z)=>new THREE.Vector3(ox+x,z+np,-(oz+y));
+  const np=nivelPiso();V.np=np;let OX=0,OY=0,OZ=0;V.toW=(x,y,z)=>new THREE.Vector3(ox+OX+x,z+np+OZ,-(oz+OY+y));
+  /* dibuja una parte de la casa (ala) con el mismo motor, desplazada a su lugar */
+  const enParte=(p,fn)=>{OX=p.x0;OY=p.y0;OZ=(p.hBase||0)-np;try{return conCasa(p,fn)}finally{OX=OY=OZ=0}};
   const add=(geo,mat,o={})=>{const m=new THREE.Mesh(geo,mat);m.castShadow=o.cast!==false;m.receiveShadow=o.recv!==false;(o.to||root).add(m);return m};
-  const hb=(x0,x1,y0,y1,z0,z1)=>boxG(ox+x0,ox+x1,oz+y0,oz+y1,z0+np,z1+np);
+  const hb=(x0,x1,y0,y1,z0,z1)=>boxG(ox+OX+x0,ox+OX+x1,oz+OY+y0,oz+OY+y1,z0+np+OZ,z1+np+OZ);
   const kExt=M.revExt||'estuco',kRoof=MATS.cubierta.opts[M.cubierta]?M.cubierta:(c.techo==='plana'?'losa':'teja');
   const mExt=mCat('revExt',kExt),mTop=mStd('flat','#D6D2CA',{rough:.9}),mIntDef=mCat('muroInt',M.muroInt||'pintura');
   const mFrame=mCat('ventanas',M.ventanas||'alBlanco'),mDoor=mCat('puertas',M.puertas||'madera');
@@ -859,7 +899,7 @@ function build3D(){const S=V.scene;if(V.root){S.remove(V.root);V.root.traverse(o
   /* pilotes bajo una casa elevada */
   if(np>0){const pm=mStd(P.fund?.mat==='hormigon'||P.fund?.tipo==='poyos'?'concrete':'woodV',P.fund?.mat==='hormigon'||P.fund?.tipo==='poyos'?'#B4B1AA':'#7A5A3C',{rough:.9});const pl=pilotesCasa();for(const [x,y] of (pl.length?pl:[[0,0],[W,0],[0,L],[W,L]]))add(boxG(ox+x-.1,ox+x+.1,oz+y-.1,oz+y+.1,-0.2,np-0.17),pm)}
   /* sobrecimiento y pisos */
-  add(hb(-e/2-0.03,W+e/2+0.03,-e/2-0.03,L+e/2+0.03,-0.17,-0.002),mConc,{cast:false});
+  for(const p of (typeof partesSuelo==='function'?partesSuelo():[{x0:0,y0:0,x1:W,y1:L}]))add(hb(p.x0-e/2-0.03,p.x1+e/2+0.03,p.y0-e/2-0.03,p.y1+e/2+0.03,-0.17,-0.002),mConc,{cast:false});
   /* cada piso: pisos terminados, muros con sus vanos, ventanas y puertas (zo = altura del piso) */
   V.col=[];
   const hb0=hb;
@@ -868,7 +908,7 @@ function build3D(){const S=V.scene;if(V.root){S.remove(V.root);V.root.traverse(o
 
   /* muros: cada cara toma el revestimiento del lado al que mira */
   const roomAt=(x,y)=>RVn.find(r=>x>r.x-EPS&&x<r.x+r.ancho+EPS&&y>r.y-EPS&&y<r.y+r.largo+EPS);
-  const outside=(x,y)=>x<-EPS||y<-EPS||x>W+EPS||y>L+EPS;
+  const outside=(x,y)=>typeof dentroCasa==='function'?!dentroCasa(x,y):(x<-EPS||y<-EPS||x>W+EPS||y>L+EPS);
   const side=(x,y)=>{if(outside(x,y))return mExt;const r=roomAt(x,y);return r?mCat('muroInt',wallOf(r),roomColor(r)?{col:r.color}:{}):mIntDef};
   const RV=RVn;const brk={h:[...new Set(RV.flatMap(r=>[r.x,r.x+r.ancho]))],v:[...new Set(RV.flatMap(r=>[r.y,r.y+r.largo]))]};
   const split=(ax,a0,b0,ea,eb)=>{const pts=[a0,...brk[ax].filter(v=>v>a0+0.02&&v<b0-0.02).sort((u,w)=>u-w),b0];return pts.slice(1).map((v,i)=>({a:pts[i],b:v,ea:i===0&&ea,eb:i===pts.length-2&&eb}))};
@@ -905,8 +945,20 @@ function build3D(){const S=V.scene;if(V.root){S.remove(V.root);V.root.traverse(o
     add(hb(-e/2,W+e/2,-e/2,L+e/2,zo-entrepiso(),zo-0.002),[mExt,mExt,mConc,mConc,mExt,mExt]);
     nivel3D(Gn,P.recintos.filter(r=>valid(r)&&nivelDe(r)===n),zo,false)}
 
+  /* escaleras: peldaños de madera hasta el piso al que llegan */
+  {const mStep=mCat('piso','madera');for(const r of P.recintos){if(!valid(r)||r.tipo!=='escalera')continue;if(typeof partesElevadas==='function'&&partesElevadas().some(p=>p.id===parteDe(r)))continue;
+    const z0=zPiso(nivelDe(r)),z1=r.esc?.llega!=null&&+r.esc.llega<nPisos()?zPiso(+r.esc.llega):z0+(+c.altura||2.4)+entrepiso(),sube=r.esc?.sube||'fondo',lng=sube==='fondo'||sube==='frente',Lr=lng?r.largo:r.ancho;
+    const n=Math.max(3,+r.esc?.peldanos||Math.ceil((z1-z0)/.18)),paso=Math.min(.3,Lr/n),rise=(z1-z0)/n;
+    for(let i=0;i<n;i++){const d0=i*paso,d1=d0+paso,za=z0+rise*i,zb=za+rise;
+      if(lng){const [y0,y1]=sube==='fondo'?[r.y+d0,r.y+d1]:[r.y+r.largo-d1,r.y+r.largo-d0];add(hb(r.x+.05,r.x+r.ancho-.05,y0,y1,zb-.05,zb),mStep)}
+      else{const [x0,x1]=sube==='derecha'?[r.x+d0,r.x+d1]:[r.x+r.ancho-d1,r.x+r.ancho-d0];add(hb(x0,x1,r.y+.05,r.y+r.largo-.05,zb-.05,zb),mStep)}}}}
+  /* cielo, frontones y techumbre de cada parte (cuerpo principal y alas) */
+  V.ceil=new THREE.Group();root.add(V.ceil);V.roofG=new THREE.Group();root.add(V.roofG);let mRoof;
+  const techoParte=()=>{const c=P.casa,W=+c.ancho||0,L=+c.largo||0,a=+c.alero||0;
   /* cielo */
-  const HT=hCasa();V.ceil=add(hb(0,W,0,L,HT,HT+0.012),mCat('cielo',M.cielo||'yeso'),{cast:false});
+  const HT=hCasa(),RC=P.recintos.filter(valid);
+  if(RC.length)for(const r of RC){const z=zPiso(nivelDe(r))+(r.alto>0?+r.alto:+c.altura||2.4);if(nivelDe(r)<nPisos()-1&&!(r.alto>0))continue;add(hb(r.x,r.x+r.ancho,r.y,r.y+r.largo,z,z+0.012),mCat('cielo',r.cielo||M.cielo||'yeso'),{cast:false,to:V.ceil})}
+  else add(hb(0,W,0,L,HT,HT+0.012),mCat('cielo',M.cielo||'yeso'),{cast:false,to:V.ceil});
 
   /* frontones: extruidos con el espesor del muro */
   if(c.techo!=='plana')for(const [ax,cc,len] of [['h',0,W],['h',L,W],['v',0,L],['v',W,L]]){const bp=[0,len/2,len];const hz=bp.map(u=>ax==='h'?roofZ(u,cc):roofZ(cc,u));if(Math.max(...hz)-HT<0.01)continue;
@@ -916,8 +968,8 @@ function build3D(){const S=V.scene;if(V.root){S.remove(V.root);V.root.traverse(o
     uvWorld(g);add(g,mExt)}
 
   /* techumbre con espesor, tapacán, cumbrera, aleros, canaletas y bajadas */
-  const roofG=new THREE.Group();root.add(roofG);V.roofG=roofG;
-  const mRoof=mCat('cubierta',kRoof,{side:1}),mSoffit=mStd('paint','#ECE8E0',{rough:.85,side:1}),mFascia=mCat('molduras',M.molduras||'pintada',{side:1}),mGut=mStd('flat','#C3C7C9',{rough:.35,metal:.5});
+  const roofG=V.roofG;
+  mRoof=mCat('cubierta',kRoof,{side:1});const mSoffit=mStd('paint','#ECE8E0',{rough:.85,side:1}),mFascia=mCat('molduras',M.molduras||'pintada',{side:1}),mGut=mStd('flat','#C3C7C9',{rough:.35,metal:.5});
   if(c.techo==='plana'){add(hb(-a,W+a,-a,L+a,HT,HT+0.25),[mFascia,mFascia,mRoof,mSoffit,mFascia,mFascia],{to:roofG})}
   else{const rt=0.14,par=c.techo==='un-agua'||c.cumbrera==='paralela',ri=roofInfo(),f=Math.sqrt(1+ri.m*ri.m);const xs=roofBps('x'),ys=roofBps('y');
     const P3=(x,y,dz)=>V.toW(x,y,roofZ(x,y)+dz);
@@ -940,6 +992,11 @@ function build3D(){const S=V.scene;if(V.root){S.remove(V.root);V.root.traverse(o
       if(ax==='h'){const z=roofZ(0,ev)-0.03;add(hb(-a,W+a,ev+o-0.06,ev+o+0.06,z-0.11,z+0.02),mGut,{to:roofG});for(const x of [-a+0.2,W+a-0.2])add(hb(x-0.04,x+0.04,ev+o-0.04,ev+o+0.04,-0.17,z-0.1),mGut,{to:roofG})}
       else{const z=roofZ(ev,0)-0.03;add(hb(ev+o-0.06,ev+o+0.06,-a,L+a,z-0.11,z+0.02),mGut,{to:roofG});for(const y of [-a+0.2,L+a-0.2])add(hb(ev+o-0.04,ev+o+0.04,y-0.04,y+0.04,-0.17,z-0.1),mGut,{to:roofG})}}}
 
+};
+  if(typeof hayAlas==='function'&&hayAlas()){for(const p of partes())enParte(p,()=>{if(!p.main&&p.hBase>.05){const Gp=geom();nivel3D(Gp,P.recintos.filter(valid),0,false);const w=p.x1-p.x0,l=p.y1-p.y0;
+      add(hb(-e/2,w+e/2,-e/2,l+e/2,-0.2,-0.002),mConc);const pl=pilotesCasa().length?pilotesCasa():[[.15,.15],[w-.15,.15],[.15,l-.15],[w-.15,l-.15],...(w>3?[[w/2,.15],[w/2,l-.15]]:[])];
+      for(const [x,y] of pl)add(hb(x-.1,x+.1,y-.1,y+.1,-p.hBase-0.17,-0.2),mConc)}techoParte()})}
+  else techoParte();
   buildVols3D(add,hb,mExt,mRoof);buildElems3D(root,ox,oz);
   /* casa en pendiente: zócalo de hormigón hasta el terreno en el lado bajo */
   {const m=Math.min(dzTer(0,0),dzTer(W,0),dzTer(0,L),dzTer(W,L));if(pendTer().p>0&&m<-0.03)add(hb(-e/2-0.03,W+e/2+0.03,-e/2-0.03,L+e/2+0.03,-0.17+m,-0.17),mConc,{cast:false})}

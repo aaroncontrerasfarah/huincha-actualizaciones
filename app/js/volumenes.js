@@ -37,7 +37,7 @@ function volPilotes(g){const n=Math.max(0,Math.round(+g.v.nPil||0));if(g.v.apoyo
   return out}
 const vols=()=>(P.volumenes||[]).map(volGeom).filter(Boolean);
 /* Caja que contiene la casa y sus volúmenes, en coordenadas de la casa */
-function houseVolBox(){const c=P.casa,b={x0:0,x1:+c.ancho||0,y0:0,y1:+c.largo||0};for(const g of vols()){b.x0=Math.min(b.x0,g.x0);b.x1=Math.max(b.x1,g.x1);b.y0=Math.min(b.y0,g.y0);b.y1=Math.max(b.y1,g.y1)}b.w=b.x1-b.x0;b.h=b.y1-b.y0;return b}
+function houseVolBox(){const c=P.casa,b={x0:0,x1:+c.ancho||0,y0:0,y1:+c.largo||0};for(const g of vols()){b.x0=Math.min(b.x0,g.x0);b.x1=Math.max(b.x1,g.x1);b.y0=Math.min(b.y0,g.y0);b.y1=Math.max(b.y1,g.y1)}if(typeof partes==='function')for(const p of partes()){b.x0=Math.min(b.x0,p.x0);b.x1=Math.max(b.x1,p.x1);b.y0=Math.min(b.y0,p.y0);b.y1=Math.max(b.y1,p.y1)}b.w=b.x1-b.x0;b.h=b.y1-b.y0;return b}
 const volLabel=g=>`${g.v.nombre.toUpperCase()}`;
 const volSub=g=>`${g.circ?'Ø '+fmt(g.r*2):fmt(g.circ?0:+g.v.ancho)+' × '+fmt(+g.v.largo)} · NPT +${fmt(g.nivel)}`;
 

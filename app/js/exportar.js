@@ -83,7 +83,7 @@ const Exportar=(()=>{
     const cub=[['Partida','Unidad','Cantidad','Precio unitario (CLP)','Total (CLP)']];
     const add=rows=>{for(const r of rows||[]){if(!Array.isArray(r)||r.length<3)continue;const i=cub.length+1;cub.push([String(r[0]),String(r[1]||''),+r[2]||0,'',`=C${i}*D${i}`])}};
     add(cubica());const nCub=cub.length;cub.push(['TOTAL','','','',`=SUM(E2:E${nCub})`]);cub[cub.length-1]._t=1;
-    const sup=[['Superficie','m²'],['Terreno',+lotArea()||0],['Construida (casa)',(+P.casa.ancho||0)*(+P.casa.largo||0)],['Útil (recintos)',P.recintos.filter(valid).reduce((a,r)=>a+r.ancho*r.largo,0)],
+    const sup=[['Superficie','m²'],['Terreno',+lotArea()||0],['Construida (casa)',(+P.casa.ancho||0)*(+P.casa.largo||0)*nPisos()+(typeof areaAlas==='function'?areaAlas():0)],['Útil (recintos)',P.recintos.filter(valid).reduce((a,r)=>a+r.ancho*r.largo,0)],
       ...P.recintos.filter(valid).map(r=>['  '+r.nombre,r.ancho*r.largo])];
     const van=[['Código','Tipo','Ancho (m)','Alto (m)','Antepecho (m)','Cantidad'],...(typeof vanosLista==='function'?vanosLista():[]).map(v=>[v.cod,v.tipo,v.ancho,v.alto,v.tipo==='Ventana'?v.ant:'',v.n])];
     const blob=xlsxBlob([{nombre:'Cubicación',filas:cub},{nombre:'Superficies',filas:sup},{nombre:'Puertas y ventanas',filas:van}]);

@@ -1,11 +1,11 @@
 {
- "web": 38,
+ "web": 42,
  "nativo": "8a3bfb548f73",
- "sha256": "a9d248ade259c3752a0567219b1600178a851fad1fbbc69a3cd6c8c91fc9ea86",
+ "sha256": "4e20e3f3e541f0a78afc529fb74c8bbc6aca937571eadce46d5e40671205e2f7",
  "firma": "",
  "apk_tipo": "prueba",
  "zip": "web.zip",
  "apk": "huincha3.apk",
- "fecha": "2026-11-25T14:09:11Z",
- "notas": "Huincha Pro (licencias), permiso antes de enviar fotos a la IA, nuevo diseño del avance, planta de cubierta, cortes con fundación y cerchas, PDF/DXF/Excel, casas de varios pisos y terrenos en pendiente."
+ "fecha": "2026-11-26T02:31:35Z",
+ "notas": "Casas de cualquier forma (alas en L, U o T, partes sobre pilotes), ficha guiada por recinto (altura, piso, muros, cielo, vanos, artefactos, escaleras), escaleras en planta y 3D, nuevo aspecto visual."
 }
